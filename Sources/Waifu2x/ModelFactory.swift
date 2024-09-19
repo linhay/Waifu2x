@@ -7,7 +7,6 @@
 //
 
 import CoreML
-import Foundation
 
 public enum Model: String, CaseIterable {
     case anime_noise0 = "anime_noise0_model"
@@ -29,7 +28,7 @@ public enum Model: String, CaseIterable {
     case photo_noise2_scale2x = "up_photo_noise2_scale2x_model"
     case photo_noise3_scale2x = "up_photo_noise3_scale2x_model"
 
-    public func getMLModel() -> MLModel {
+    func getMLModel() -> MLModel {
         let bundle = Bundle.module
         let assetPath = bundle.url(forResource: rawValue, withExtension: "mlmodelc")
         return try! MLModel(contentsOf: assetPath!)

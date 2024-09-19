@@ -6,18 +6,17 @@
 //  Copyright © 2018年 xieyi. All rights reserved.
 //
 
-import Foundation
 import Metal
 import MetalKit
 
-class MetalNotAvailableError: Error {}
+struct MetalNotAvailableError: Error {}
 
 class MetalBicubic {
     let device: MTLDevice!
     let library: MTLLibrary!
     let commandQueue: MTLCommandQueue!
 
-    public init() throws {
+    init() throws {
         device = MTLCreateSystemDefaultDevice()
         guard device != nil else {
             throw MetalNotAvailableError()

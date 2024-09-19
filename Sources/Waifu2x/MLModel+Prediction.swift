@@ -7,7 +7,6 @@
 //
 
 import CoreML
-import Foundation
 
 /// Model Prediction Input Type
 class Waifu2xInput: MLFeatureProvider {
@@ -32,7 +31,7 @@ class Waifu2xInput: MLFeatureProvider {
 
 // MARK: - Make coreml models more generic to use
 
-public extension MLModel {
+extension MLModel {
     func prediction(input: MLMultiArray) throws -> MLMultiArray {
         let input_ = Waifu2xInput(input)
         let outFeatures = try prediction(from: input_)

@@ -7,7 +7,6 @@
 //
 
 import AppKit
-import Foundation
 
 extension NSImage {
     // For images with more than 8 bits per component, extracting alpha only produces incomplete image

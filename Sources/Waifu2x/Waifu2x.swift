@@ -8,7 +8,6 @@
 
 import AppKit
 import CoreML
-import Foundation
 
 public struct Waifu2x {
     /// The output block size.

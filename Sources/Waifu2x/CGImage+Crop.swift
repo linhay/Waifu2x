@@ -7,9 +7,8 @@
 //
 
 import CoreML
-import Foundation
 
-public extension CGImage {
+extension CGImage {
     func getCropRects(_ block_size: Int) -> ([CGRect]) {
         let num_w = width / block_size
         let num_h = height / block_size

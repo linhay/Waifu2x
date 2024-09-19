@@ -54,13 +54,13 @@ class BackgroundPipeline<T> {
     /// Add an object to FIFO buffer then send a signal.
     ///
     /// - Parameter obj: The object
-    public func appendObject(_ obj: T) {
+    func appendObject(_ obj: T) {
         queue.enqueue(obj)
         work_sem.signal()
     }
 
     /// Wait for work to complete, must be called or it will cause wait&signal imbalance.
-    public func wait() {
+    func wait() {
         wait_sem.wait()
         wait_sem.signal()
     }

@@ -8,7 +8,7 @@
 
 import CoreML
 
-public extension CGImage {
+extension CGImage {
     /// Expand the original image by shrink_size and store rgb in float array.
     /// The model will shrink the input image by 7 px.
     ///

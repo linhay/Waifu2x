@@ -30,7 +30,7 @@ class BackgroundTask {
     }
 
     /// Wait for work to complete, must be called or it will cause wait&signal imbalance.
-    public func wait() {
+    func wait() {
         wait_sem.wait()
     }
 }
