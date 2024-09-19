@@ -1,5 +1,5 @@
-import Testing
 import Cocoa
+import Testing
 @testable import Waifu2x
 
 @Test func testAllModels() async throws {

@@ -10,13 +10,12 @@ import Foundation
 
 /// Waitable background task
 class BackgroundTask {
-    
     /// Used to wait for operations to complete
     private let wait_sem = DispatchSemaphore(value: 0)
-    
+
     /// Background DispatchQueue to run operations
     private let background: DispatchQueue
-    
+
     /// Constructor
     ///
     /// - Parameters:
@@ -29,10 +28,9 @@ class BackgroundTask {
             self.wait_sem.signal()
         }
     }
-    
+
     /// Wait for work to complete, must be called or it will cause wait&signal imbalance.
     public func wait() {
         wait_sem.wait()
     }
-    
 }

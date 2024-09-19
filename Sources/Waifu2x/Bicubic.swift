@@ -11,13 +11,12 @@ import Foundation
 
 /// Bicubic interpolation on image
 class Bicubic {
-    
     let image: [UInt8]
     let channels: Int
     let width: Int
     let height: Int
     let pitch: Int
-    
+
     /// Create Bicubic instance
     ///
     /// - Parameters:
@@ -32,7 +31,7 @@ class Bicubic {
         self.image = image
         pitch = channels * width
     }
-    
+
     private func clamped(_ v: Float, _ min: Float, _ max: Float) -> Float {
         if v < min {
             return min
@@ -42,7 +41,7 @@ class Bicubic {
         }
         return v
     }
-    
+
     private func clamped(_ v: Int, _ min: Int, _ max: Int) -> Int {
         if v < min {
             return min
@@ -52,7 +51,7 @@ class Bicubic {
         }
         return v
     }
-    
+
     /// Get pixel at specific point with protection of overflow
     ///
     /// - Parameters:
@@ -65,7 +64,7 @@ class Bicubic {
         let yy = clamped(y, 0, height - 1)
         return Float(image[yy * pitch + xx + c])
     }
-    
+
     /// t is a value that goes from 0 to 1 to interpolate in a C1 continuous way across uniformly sampled data points.
     /// when t is 0, this will return B.  When t is 1, this will return C.  Inbetween values will return an interpolation
     /// between B and C.  A and B are used to calculate slopes at the edges.
@@ -85,31 +84,31 @@ class Bicubic {
         let y = v * Float(height) - 0.5
         let yint = Int(y)
         let yfract = y - floor(y)
-        
+
         // 1st row
         let p00 = getPixelClamped(x: xint - 1, y: yint - 1, c: c)
         let p10 = getPixelClamped(x: xint + 0, y: yint - 1, c: c)
         let p20 = getPixelClamped(x: xint + 1, y: yint - 1, c: c)
         let p30 = getPixelClamped(x: xint + 2, y: yint - 1, c: c)
-        
+
         // 2nd row
         let p01 = getPixelClamped(x: xint - 1, y: yint + 0, c: c)
         let p11 = getPixelClamped(x: xint + 0, y: yint + 0, c: c)
         let p21 = getPixelClamped(x: xint + 1, y: yint + 0, c: c)
         let p31 = getPixelClamped(x: xint + 2, y: yint + 0, c: c)
-        
+
         // 3rd row
         let p02 = getPixelClamped(x: xint - 1, y: yint + 1, c: c)
         let p12 = getPixelClamped(x: xint + 0, y: yint + 1, c: c)
         let p22 = getPixelClamped(x: xint + 1, y: yint + 1, c: c)
         let p32 = getPixelClamped(x: xint + 2, y: yint + 1, c: c)
-        
+
         // 4th row
         let p03 = getPixelClamped(x: xint - 1, y: yint + 2, c: c)
         let p13 = getPixelClamped(x: xint + 0, y: yint + 2, c: c)
         let p23 = getPixelClamped(x: xint + 1, y: yint + 2, c: c)
         let p33 = getPixelClamped(x: xint + 2, y: yint + 2, c: c)
-        
+
         // interpolate bi-cubically
         // Clamp the values since the curve can put the value below 0 or above 255
         let col0 = cubicHermite(p00, p10, p20, p30, t: xfract)
@@ -118,10 +117,10 @@ class Bicubic {
         let col3 = cubicHermite(p03, p13, p23, p33, t: xfract)
         var value = cubicHermite(col0, col1, col2, col3, t: yfract)
         value = clamped(value, 0, 255)
-        
+
         return UInt8(value)
     }
-    
+
     /// Resize the image
     ///
     /// - Parameter scale: Scale factor
@@ -143,5 +142,4 @@ class Bicubic {
         }
         return out
     }
-    
 }

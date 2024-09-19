@@ -10,15 +10,13 @@ import Foundation
 import Metal
 import MetalKit
 
-class MetalNotAvailableError: Error {
-}
+class MetalNotAvailableError: Error {}
 
 class MetalBicubic {
-    
     let device: MTLDevice!
     let library: MTLLibrary!
     let commandQueue: MTLCommandQueue!
-    
+
     public init() throws {
         device = MTLCreateSystemDefaultDevice()
         guard device != nil else {
@@ -27,11 +25,11 @@ class MetalBicubic {
         library = try device.makeDefaultLibrary(bundle: Bundle(for: type(of: self)))
         commandQueue = device.makeCommandQueue()
     }
-    
+
     func maxTextureSize() -> Int {
         return 16384
     }
-    
+
     func resizeSingle(_ input: [UInt8], _ width: Int, _ height: Int, _ factor: Float = 1.0) -> [UInt8]? {
         // Get image size
         var inW = width
@@ -53,12 +51,12 @@ class MetalBicubic {
         }
         // Set constants
         let constants = MTLFunctionConstantValues()
-        constants.setConstantValue(&sf,   type: MTLDataType.float, index: 0)
-        constants.setConstantValue(&inW,  type: MTLDataType.uint,  index: 1)
-        constants.setConstantValue(&inH,  type: MTLDataType.uint,  index: 2)
-        constants.setConstantValue(&outW, type: MTLDataType.uint,  index: 3)
-        constants.setConstantValue(&outH, type: MTLDataType.uint,  index: 4)
-        constants.setConstantValue(&outP, type: MTLDataType.uint,  index: 5)
+        constants.setConstantValue(&sf, type: MTLDataType.float, index: 0)
+        constants.setConstantValue(&inW, type: MTLDataType.uint, index: 1)
+        constants.setConstantValue(&inH, type: MTLDataType.uint, index: 2)
+        constants.setConstantValue(&outW, type: MTLDataType.uint, index: 3)
+        constants.setConstantValue(&outH, type: MTLDataType.uint, index: 4)
+        constants.setConstantValue(&outP, type: MTLDataType.uint, index: 5)
         let sampleMain = try! library.makeFunction(name: "BicubicSingleMain", constantValues: constants)
         let pipelineState = try! device.makeComputePipelineState(function: sampleMain)
         // Invoke kernel function
@@ -81,5 +79,4 @@ class MetalBicubic {
         outTexture.getBytes(&outBytes, bytesPerRow: outBytesPerRow, from: outRegion, mipmapLevel: 0)
         return outBytes
     }
-    
 }

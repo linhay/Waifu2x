@@ -6,32 +6,31 @@
 //  Copyright © 2018年 xieyi. All rights reserved.
 //
 
-import Foundation
-import CoreML
 import AppKit
+import CoreML
+import Foundation
 
 public class Waifu2x {
-    
     /// The output block size.
     /// It is dependent on the model.
     /// Do not modify it until you are sure your model has a different number.
     static var block_size = 128
-    
+
     /// The difference between output and input block size
     static let shrink_size = 7
-    
+
     /// Do not exactly know its function
     /// However it can on average improve PSNR by 0.09
     /// https://github.com/nagadomi/waifu2x/commit/797b45ae23665a1c5e3c481c018e48e6f0d0e383
     static let clip_eta8 = Float(0.00196)
-    
+
     public static var interrupt = false
-    
-    static private var in_pipeline: BackgroundPipeline<CGRect>! = nil
-    static private var model_pipeline: BackgroundPipeline<MLMultiArray>! = nil
-    static private var out_pipeline: BackgroundPipeline<MLMultiArray>! = nil
-    
-    static public func run(_ image: NSImage!, model: Model!, _ callback: @escaping (String) -> Void = { _ in }) -> NSImage? {
+
+    private static var in_pipeline: BackgroundPipeline<CGRect>!
+    private static var model_pipeline: BackgroundPipeline<MLMultiArray>!
+    private static var out_pipeline: BackgroundPipeline<MLMultiArray>!
+
+    public static func run(_ image: NSImage!, model: Model!, _ callback: @escaping (String) -> Void = { _ in }) -> NSImage? {
         guard image != nil else {
             return nil
         }
@@ -58,7 +57,7 @@ public class Waifu2x {
             return nil
         }
         var fullCG = cgimg
-        
+
         // If image is too small, expand it
         if width < block_size || height < block_size {
             if width < block_size {
@@ -84,11 +83,11 @@ public class Waifu2x {
             }
             fullCG = contextCG
         }
-        
+
         var hasalpha = cgimg.alphaInfo != CGImageAlphaInfo.none
         debugPrint("With Alpha: \(hasalpha)")
         var channels = 3
-        var alpha: [UInt8]! = nil
+        var alpha: [UInt8]!
         if hasalpha {
             alpha = image.alpha()
             var ralpha = false
@@ -130,7 +129,7 @@ public class Waifu2x {
             imgData.deallocate()
         }
         // Alpha channel support
-        var alpha_task: BackgroundTask? = nil
+        var alpha_task: BackgroundTask?
         if hasalpha {
             alpha_task = BackgroundTask("alpha") {
                 if out_scale > 1 {
@@ -164,7 +163,7 @@ public class Waifu2x {
             }
         }
         // Output
-        Waifu2x.out_pipeline = BackgroundPipeline<MLMultiArray>("out_pipeline", count: rects.count) { (index, array) in
+        Waifu2x.out_pipeline = BackgroundPipeline<MLMultiArray>("out_pipeline", count: rects.count) { index, array in
             let rect = rects[index]
             let origin_x = Int(rect.origin.x) * out_scale
             let origin_y = Int(rect.origin.y) * out_scale
@@ -174,9 +173,9 @@ public class Waifu2x {
             var dest_y: Int
             var src_index: Int
             var dest_index: Int
-            for channel in 0..<3 {
-                for src_y in 0..<out_block_size {
-                    for src_x in 0..<out_block_size {
+            for channel in 0 ..< 3 {
+                for src_y in 0 ..< out_block_size {
+                    for src_x in 0 ..< out_block_size {
                         dest_x = origin_x + src_x
                         dest_y = origin_y + src_y
                         if dest_x >= out_fullWidth || dest_y >= out_fullHeight {
@@ -192,7 +191,7 @@ public class Waifu2x {
         // Prepare for model pipeline
         // Run prediction on each block
         let mlmodel = model.getMLModel()
-        Waifu2x.model_pipeline = BackgroundPipeline<MLMultiArray>("model_pipeline", count: rects.count) { (index, array) in
+        Waifu2x.model_pipeline = BackgroundPipeline<MLMultiArray>("model_pipeline", count: rects.count) { index, array in
             out_pipeline.appendObject(try! mlmodel.prediction(input: array))
             callback("\((index * 100) / rects.count)")
         }
@@ -201,14 +200,14 @@ public class Waifu2x {
         let expheight = fullHeight + 2 * Waifu2x.shrink_size
         let expanded = fullCG.expand(withAlpha: hasalpha)
         callback("processing")
-        Waifu2x.in_pipeline = BackgroundPipeline<CGRect>("in_pipeline", count: rects.count, task: { (index, rect) in
+        Waifu2x.in_pipeline = BackgroundPipeline<CGRect>("in_pipeline", count: rects.count, task: { _, rect in
             let x = Int(rect.origin.x)
             let y = Int(rect.origin.y)
             let multi = try! MLMultiArray(shape: [3, NSNumber(value: Waifu2x.block_size + 2 * Waifu2x.shrink_size), NSNumber(value: Waifu2x.block_size + 2 * Waifu2x.shrink_size)], dataType: .float32)
             var x_new: Int
             var y_new: Int
-            for y_exp in y..<(y + Waifu2x.block_size + 2 * Waifu2x.shrink_size) {
-                for x_exp in x..<(x + Waifu2x.block_size + 2 * Waifu2x.shrink_size) {
+            for y_exp in y ..< (y + Waifu2x.block_size + 2 * Waifu2x.shrink_size) {
+                for x_exp in x ..< (x + Waifu2x.block_size + 2 * Waifu2x.shrink_size) {
                     x_new = x_exp - x
                     y_new = y_exp - y
                     var dest = y_new * (Waifu2x.block_size + 2 * Waifu2x.shrink_size) + x_new
@@ -221,7 +220,7 @@ public class Waifu2x {
             }
             model_pipeline.appendObject(multi)
         })
-        for i in 0..<rects.count {
+        for i in 0 ..< rects.count {
             Waifu2x.in_pipeline.appendObject(rects[i])
         }
         Waifu2x.in_pipeline.wait()
@@ -243,11 +242,9 @@ public class Waifu2x {
         if hasalpha {
             bitmapInfo |= CGImageAlphaInfo.last.rawValue
         }
-        let cgImage = CGImage(width: out_width, height: out_height, bitsPerComponent: 8, bitsPerPixel: 8 * channels, bytesPerRow: out_width * channels, space: colorSpace, bitmapInfo: CGBitmapInfo.init(rawValue: bitmapInfo), provider: dataProvider, decode: nil, shouldInterpolate: true, intent: CGColorRenderingIntent.defaultIntent)
+        let cgImage = CGImage(width: out_width, height: out_height, bitsPerComponent: 8, bitsPerPixel: 8 * channels, bytesPerRow: out_width * channels, space: colorSpace, bitmapInfo: CGBitmapInfo(rawValue: bitmapInfo), provider: dataProvider, decode: nil, shouldInterpolate: true, intent: CGColorRenderingIntent.defaultIntent)
         let outImage = NSImage(cgImage: cgImage!, size: CGSize(width: out_width, height: out_height))
         callback("finished")
         return outImage
     }
-    
 }
-
