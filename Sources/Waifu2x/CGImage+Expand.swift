@@ -13,7 +13,7 @@ public extension CGImage {
     /// The model will shrink the input image by 7 px.
     ///
     /// - Returns: Float array of rgb values
-    func expand(withAlpha: Bool) -> [Float] {
+    func expand(withAlpha: Bool, shrink_size: Int, clip_eta8: Float) -> [Float] {
         let rect = NSRect(origin: .zero, size: CGSize(width: width, height: height))
 
         // Redraw image in 32-bit RGBA
@@ -25,8 +25,8 @@ public extension CGImage {
         let context = CGContext(data: data, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 4 * width, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGBitmapInfo.byteOrder32Big.rawValue | CGImageAlphaInfo.noneSkipLast.rawValue)
         context?.draw(self, in: rect)
 
-        let exwidth = width + 2 * Waifu2x.shrink_size
-        let exheight = height + 2 * Waifu2x.shrink_size
+        let exwidth = width + 2 * shrink_size
+        let exheight = height + 2 * shrink_size
 
         var arr = [Float](repeating: 0, count: 3 * exwidth * exheight)
 
@@ -36,17 +36,17 @@ public extension CGImage {
         // http://www.jianshu.com/p/516f01fed6e4
         for y in 0 ..< height {
             for x in 0 ..< width {
-                xx = x + Waifu2x.shrink_size
-                yy = y + Waifu2x.shrink_size
+                xx = x + shrink_size
+                yy = y + shrink_size
                 pixel = (width * y + x) * 4
                 r = data[pixel]
                 g = data[pixel + 1]
                 b = data[pixel + 2]
                 // !!! rgb values are from 0 to 1
                 // https://github.com/chungexcy/waifu2x-new/blob/master/image_test.py
-                fr = Float(r) / 255 + Waifu2x.clip_eta8
-                fg = Float(g) / 255 + Waifu2x.clip_eta8
-                fb = Float(b) / 255 + Waifu2x.clip_eta8
+                fr = Float(r) / 255 + clip_eta8
+                fg = Float(g) / 255 + clip_eta8
+                fb = Float(b) / 255 + clip_eta8
                 if withAlpha {
                     a = data[pixel + 3]
                     if a > 0 {
@@ -68,8 +68,8 @@ public extension CGImage {
         fr = Float(r) / 255
         fg = Float(g) / 255
         fb = Float(b) / 255
-        for y in 0 ..< Waifu2x.shrink_size {
-            for x in 0 ..< Waifu2x.shrink_size {
+        for y in 0 ..< shrink_size {
+            for x in 0 ..< shrink_size {
                 arr[y * exwidth + x] = fr
                 arr[y * exwidth + x + exwidth * exheight] = fg
                 arr[y * exwidth + x + exwidth * exheight * 2] = fb
@@ -83,8 +83,8 @@ public extension CGImage {
         fr = Float(r) / 255
         fg = Float(g) / 255
         fb = Float(b) / 255
-        for y in 0 ..< Waifu2x.shrink_size {
-            for x in width + Waifu2x.shrink_size ..< width + 2 * Waifu2x.shrink_size {
+        for y in 0 ..< shrink_size {
+            for x in width + shrink_size ..< width + 2 * shrink_size {
                 arr[y * exwidth + x] = fr
                 arr[y * exwidth + x + exwidth * exheight] = fg
                 arr[y * exwidth + x + exwidth * exheight * 2] = fb
@@ -98,8 +98,8 @@ public extension CGImage {
         fr = Float(r) / 255
         fg = Float(g) / 255
         fb = Float(b) / 255
-        for y in height + Waifu2x.shrink_size ..< height + 2 * Waifu2x.shrink_size {
-            for x in 0 ..< Waifu2x.shrink_size {
+        for y in height + shrink_size ..< height + 2 * shrink_size {
+            for x in 0 ..< shrink_size {
                 arr[y * exwidth + x] = fr
                 arr[y * exwidth + x + exwidth * exheight] = fg
                 arr[y * exwidth + x + exwidth * exheight * 2] = fb
@@ -113,8 +113,8 @@ public extension CGImage {
         fr = Float(r) / 255
         fg = Float(g) / 255
         fb = Float(b) / 255
-        for y in height + Waifu2x.shrink_size ..< height + 2 * Waifu2x.shrink_size {
-            for x in width + Waifu2x.shrink_size ..< width + 2 * Waifu2x.shrink_size {
+        for y in height + shrink_size ..< height + 2 * shrink_size {
+            for x in width + shrink_size ..< width + 2 * shrink_size {
                 arr[y * exwidth + x] = fr
                 arr[y * exwidth + x + exwidth * exheight] = fg
                 arr[y * exwidth + x + exwidth * exheight * 2] = fb
@@ -129,8 +129,8 @@ public extension CGImage {
             fr = Float(r) / 255
             fg = Float(g) / 255
             fb = Float(b) / 255
-            xx = x + Waifu2x.shrink_size
-            for y in 0 ..< Waifu2x.shrink_size {
+            xx = x + shrink_size
+            for y in 0 ..< shrink_size {
                 arr[y * exwidth + xx] = fr
                 arr[y * exwidth + xx + exwidth * exheight] = fg
                 arr[y * exwidth + xx + exwidth * exheight * 2] = fb
@@ -142,8 +142,8 @@ public extension CGImage {
             fr = Float(r) / 255
             fg = Float(g) / 255
             fb = Float(b) / 255
-            xx = x + Waifu2x.shrink_size
-            for y in height + Waifu2x.shrink_size ..< height + 2 * Waifu2x.shrink_size {
+            xx = x + shrink_size
+            for y in height + shrink_size ..< height + 2 * shrink_size {
                 arr[y * exwidth + xx] = fr
                 arr[y * exwidth + xx + exwidth * exheight] = fg
                 arr[y * exwidth + xx + exwidth * exheight * 2] = fb
@@ -158,8 +158,8 @@ public extension CGImage {
             fr = Float(r) / 255
             fg = Float(g) / 255
             fb = Float(b) / 255
-            yy = y + Waifu2x.shrink_size
-            for x in 0 ..< Waifu2x.shrink_size {
+            yy = y + shrink_size
+            for x in 0 ..< shrink_size {
                 arr[yy * exwidth + x] = fr
                 arr[yy * exwidth + x + exwidth * exheight] = fg
                 arr[yy * exwidth + x + exwidth * exheight * 2] = fb
@@ -171,8 +171,8 @@ public extension CGImage {
             fr = Float(r) / 255
             fg = Float(g) / 255
             fb = Float(b) / 255
-            yy = y + Waifu2x.shrink_size
-            for x in width + Waifu2x.shrink_size ..< width + 2 * Waifu2x.shrink_size {
+            yy = y + shrink_size
+            for x in width + shrink_size ..< width + 2 * shrink_size {
                 arr[yy * exwidth + x] = fr
                 arr[yy * exwidth + x + exwidth * exheight] = fg
                 arr[yy * exwidth + x + exwidth * exheight * 2] = fb

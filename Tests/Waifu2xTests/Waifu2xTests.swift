@@ -7,8 +7,9 @@ import Testing
     let path = bundle.path(forResource: "white", ofType: "png")!
     let data = NSData(contentsOfFile: path)
     let image = NSImage(data: data! as Data)!
-    for model in Model.all {
+    for model in Model.allCases {
         print(model)
-        assert(Waifu2x.run(image, model: model) != nil)
+        let waifu2x = Waifu2x(model: model)
+        assert(waifu2x.run(image) != nil)
     }
 }

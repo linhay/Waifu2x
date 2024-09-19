@@ -10,44 +10,43 @@ import AppKit
 import CoreML
 import Foundation
 
-public class Waifu2x {
+public struct Waifu2x {
     /// The output block size.
     /// It is dependent on the model.
     /// Do not modify it until you are sure your model has a different number.
-    static var block_size = 128
+    private let block_size: Int
+
+    private let out_scale: Int
 
     /// The difference between output and input block size
-    static let shrink_size = 7
+    private let shrink_size = 7
 
     /// Do not exactly know its function
     /// However it can on average improve PSNR by 0.09
     /// https://github.com/nagadomi/waifu2x/commit/797b45ae23665a1c5e3c481c018e48e6f0d0e383
-    static let clip_eta8 = Float(0.00196)
+    private let clip_eta8 = Float(0.00196)
 
-    public static var interrupt = false
+    private let mlmodel: MLModel
 
-    private static var in_pipeline: BackgroundPipeline<CGRect>!
-    private static var model_pipeline: BackgroundPipeline<MLMultiArray>!
-    private static var out_pipeline: BackgroundPipeline<MLMultiArray>!
-
-    public static func run(_ image: NSImage!, model: Model!, _ callback: @escaping (String) -> Void = { _ in }) -> NSImage? {
-        guard image != nil else {
-            return nil
-        }
-        guard model != nil else {
-            callback("finished")
-            return image
-        }
-        Waifu2x.interrupt = false
-        var out_scale: Int
-        switch model! {
+    public init(model: Model) {
+        switch model {
         case .anime_noise0, .anime_noise1, .anime_noise2, .anime_noise3, .photo_noise0, .photo_noise1, .photo_noise2, .photo_noise3:
-            Waifu2x.block_size = 128
+            block_size = 128
             out_scale = 1
         default:
-            Waifu2x.block_size = 142
+            block_size = 142
             out_scale = 2
         }
+        mlmodel = model.getMLModel()
+    }
+
+    public func run(_ image: NSImage) -> NSImage? {
+        // pipelines
+        var in_pipeline: BackgroundPipeline<CGRect>!
+        var model_pipeline: BackgroundPipeline<MLMultiArray>!
+        var out_pipeline: BackgroundPipeline<MLMultiArray>!
+        // end pipeline
+
         let width = Int(image.representations[0].pixelsWide)
         let height = Int(image.representations[0].pixelsHigh)
         var fullWidth = width
@@ -109,8 +108,8 @@ public class Waifu2x {
         let out_height = height * out_scale
         let out_fullWidth = fullWidth * out_scale
         let out_fullHeight = fullHeight * out_scale
-        let out_block_size = Waifu2x.block_size * out_scale
-        let rects = fullCG.getCropRects()
+        let out_block_size = block_size * out_scale
+        let rects = fullCG.getCropRects(block_size)
         // Prepare for output pipeline
         // Merge arrays into one array
         let normalize = { (input: Double) -> Double in
@@ -132,12 +131,12 @@ public class Waifu2x {
         var alpha_task: BackgroundTask?
         if hasalpha {
             alpha_task = BackgroundTask("alpha") {
-                if out_scale > 1 {
+                if self.out_scale > 1 {
                     var outalpha: [UInt8]? = nil
                     if let metalBicubic = try? MetalBicubic() {
                         NSLog("Maximum texture size supported: %d", metalBicubic.maxTextureSize())
                         if out_width <= metalBicubic.maxTextureSize() && out_height <= metalBicubic.maxTextureSize() {
-                            outalpha = metalBicubic.resizeSingle(alpha, width, height, Float(out_scale))
+                            outalpha = metalBicubic.resizeSingle(alpha, width, height, Float(self.out_scale))
                         }
                     }
                     var emptyAlpha = true
@@ -152,7 +151,7 @@ public class Waifu2x {
                     } else {
                         // Fallback to CPU scale
                         let bicubic = Bicubic(image: alpha, channels: 1, width: width, height: height)
-                        alpha = bicubic.resize(scale: Float(out_scale))
+                        alpha = bicubic.resize(scale: Float(self.out_scale))
                     }
                 }
                 for y in 0 ..< out_height {
@@ -163,10 +162,10 @@ public class Waifu2x {
             }
         }
         // Output
-        Waifu2x.out_pipeline = BackgroundPipeline<MLMultiArray>("out_pipeline", count: rects.count) { index, array in
+        out_pipeline = BackgroundPipeline<MLMultiArray>("out_pipeline", count: rects.count) { index, array in
             let rect = rects[index]
-            let origin_x = Int(rect.origin.x) * out_scale
-            let origin_y = Int(rect.origin.y) * out_scale
+            let origin_x = Int(rect.origin.x) * self.out_scale
+            let origin_y = Int(rect.origin.y) * self.out_scale
             let dataPointer = UnsafeMutableBufferPointer(start: array.dataPointer.assumingMemoryBound(to: Double.self),
                                                          count: bufferSize)
             var dest_x: Int
@@ -190,51 +189,48 @@ public class Waifu2x {
         }
         // Prepare for model pipeline
         // Run prediction on each block
-        let mlmodel = model.getMLModel()
-        Waifu2x.model_pipeline = BackgroundPipeline<MLMultiArray>("model_pipeline", count: rects.count) { index, array in
-            out_pipeline.appendObject(try! mlmodel.prediction(input: array))
-            callback("\((index * 100) / rects.count)")
+        model_pipeline = BackgroundPipeline<MLMultiArray>("model_pipeline", count: rects.count) { _, array in
+            out_pipeline.appendObject(try! self.mlmodel.prediction(input: array))
+//            callback("\((index * 100) / rects.count)")
         }
         // Start running model
-        let expwidth = fullWidth + 2 * Waifu2x.shrink_size
-        let expheight = fullHeight + 2 * Waifu2x.shrink_size
-        let expanded = fullCG.expand(withAlpha: hasalpha)
-        callback("processing")
-        Waifu2x.in_pipeline = BackgroundPipeline<CGRect>("in_pipeline", count: rects.count, task: { _, rect in
+        let expwidth = fullWidth + 2 * shrink_size
+        let expheight = fullHeight + 2 * shrink_size
+        let expanded = fullCG.expand(withAlpha: hasalpha, shrink_size: shrink_size, clip_eta8: clip_eta8)
+//        callback("processing")
+        in_pipeline = BackgroundPipeline<CGRect>("in_pipeline", count: rects.count, task: { _, rect in
             let x = Int(rect.origin.x)
             let y = Int(rect.origin.y)
-            let multi = try! MLMultiArray(shape: [3, NSNumber(value: Waifu2x.block_size + 2 * Waifu2x.shrink_size), NSNumber(value: Waifu2x.block_size + 2 * Waifu2x.shrink_size)], dataType: .float32)
+            let multi = try! MLMultiArray(shape: [
+                3,
+                NSNumber(value: self.block_size + 2 * self.shrink_size),
+                NSNumber(value: self.block_size + 2 * self.shrink_size),
+            ], dataType: .float32)
             var x_new: Int
             var y_new: Int
-            for y_exp in y ..< (y + Waifu2x.block_size + 2 * Waifu2x.shrink_size) {
-                for x_exp in x ..< (x + Waifu2x.block_size + 2 * Waifu2x.shrink_size) {
+            for y_exp in y ..< (y + self.block_size + 2 * self.shrink_size) {
+                for x_exp in x ..< (x + self.block_size + 2 * self.shrink_size) {
                     x_new = x_exp - x
                     y_new = y_exp - y
-                    var dest = y_new * (Waifu2x.block_size + 2 * Waifu2x.shrink_size) + x_new
+                    var dest = y_new * (self.block_size + 2 * self.shrink_size) + x_new
                     multi[dest] = NSNumber(value: expanded[y_exp * expwidth + x_exp])
-                    dest = y_new * (Waifu2x.block_size + 2 * Waifu2x.shrink_size) + x_new + (block_size + 2 * Waifu2x.shrink_size) * (block_size + 2 * Waifu2x.shrink_size)
+                    dest = y_new * (self.block_size + 2 * self.shrink_size) + x_new + (self.block_size + 2 * self.shrink_size) * (self.block_size + 2 * self.shrink_size)
                     multi[dest] = NSNumber(value: expanded[y_exp * expwidth + x_exp + expwidth * expheight])
-                    dest = y_new * (Waifu2x.block_size + 2 * Waifu2x.shrink_size) + x_new + (block_size + 2 * Waifu2x.shrink_size) * (block_size + 2 * Waifu2x.shrink_size) * 2
+                    dest = y_new * (self.block_size + 2 * self.shrink_size) + x_new + (self.block_size + 2 * self.shrink_size) * (self.block_size + 2 * self.shrink_size) * 2
                     multi[dest] = NSNumber(value: expanded[y_exp * expwidth + x_exp + expwidth * expheight * 2])
                 }
             }
             model_pipeline.appendObject(multi)
         })
         for i in 0 ..< rects.count {
-            Waifu2x.in_pipeline.appendObject(rects[i])
+            in_pipeline.appendObject(rects[i])
         }
-        Waifu2x.in_pipeline.wait()
-        Waifu2x.model_pipeline.wait()
-        callback("wait_alpha")
+        in_pipeline.wait()
+        model_pipeline.wait()
+//        callback("wait_alpha")
         alpha_task?.wait()
-        Waifu2x.out_pipeline.wait()
-        Waifu2x.in_pipeline = nil
-        Waifu2x.model_pipeline = nil
-        Waifu2x.out_pipeline = nil
-        if Waifu2x.interrupt {
-            return nil
-        }
-        callback("generate_output")
+        out_pipeline.wait()
+//        callback("generate_output")
         let cfbuffer = CFDataCreate(nil, imgData, out_width * out_height * channels)!
         let dataProvider = CGDataProvider(data: cfbuffer)!
         let colorSpace = CGColorSpaceCreateDeviceRGB()
@@ -244,7 +240,7 @@ public class Waifu2x {
         }
         let cgImage = CGImage(width: out_width, height: out_height, bitsPerComponent: 8, bitsPerPixel: 8 * channels, bytesPerRow: out_width * channels, space: colorSpace, bitmapInfo: CGBitmapInfo(rawValue: bitmapInfo), provider: dataProvider, decode: nil, shouldInterpolate: true, intent: CGColorRenderingIntent.defaultIntent)
         let outImage = NSImage(cgImage: cgImage!, size: CGSize(width: out_width, height: out_height))
-        callback("finished")
+//        callback("finished")
         return outImage
     }
 }
