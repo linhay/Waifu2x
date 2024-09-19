@@ -11,7 +11,7 @@ import MetalKit
 
 struct MetalNotAvailableError: Error {}
 
-class MetalBicubic {
+struct MetalBicubic {
     let device: MTLDevice!
     let library: MTLLibrary!
     let commandQueue: MTLCommandQueue!
@@ -21,7 +21,7 @@ class MetalBicubic {
         guard device != nil else {
             throw MetalNotAvailableError()
         }
-        library = try device.makeDefaultLibrary(bundle: Bundle(for: type(of: self)))
+        library = try device.makeDefaultLibrary(bundle: Bundle.module)
         commandQueue = device.makeCommandQueue()
     }
 

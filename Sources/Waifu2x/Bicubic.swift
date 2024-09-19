@@ -10,7 +10,7 @@
 import Foundation
 
 /// Bicubic interpolation on image
-class Bicubic {
+struct Bicubic {
     let image: [UInt8]
     let channels: Int
     let width: Int
