@@ -84,7 +84,7 @@ public struct Waifu2x {
 
         var hasalpha = cgimg.alphaInfo != CGImageAlphaInfo.none
         debugPrint("With Alpha: \(hasalpha)")
-        var channels = 3
+        let channels = 4
         var alpha: [UInt8]!
         if hasalpha {
             alpha = image.alpha()
@@ -96,9 +96,7 @@ public struct Waifu2x {
                     break
                 }
             }
-            if ralpha {
-                channels = 4
-            } else {
+            if !ralpha {
                 hasalpha = false
             }
         }
@@ -236,6 +234,8 @@ public struct Waifu2x {
         var bitmapInfo = CGBitmapInfo.byteOrder32Big.rawValue
         if hasalpha {
             bitmapInfo |= CGImageAlphaInfo.last.rawValue
+        } else {
+            bitmapInfo |= CGImageAlphaInfo.noneSkipLast.rawValue
         }
         let cgImage = CGImage(width: out_width, height: out_height, bitsPerComponent: 8, bitsPerPixel: 8 * channels, bytesPerRow: out_width * channels, space: colorSpace, bitmapInfo: CGBitmapInfo(rawValue: bitmapInfo), provider: dataProvider, decode: nil, shouldInterpolate: true, intent: CGColorRenderingIntent.defaultIntent)
         let outImage = NSImage(cgImage: cgImage!, size: CGSize(width: out_width, height: out_height))
