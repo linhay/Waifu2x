@@ -5,15 +5,19 @@ import PackageDescription
 
 let package = Package(
     name: "Waifu2x",
-    platforms: [.macOS(.v10_15)],
+    platforms: [.macOS(.v10_13)],
     products: [
         .library(name: "Waifu2x", targets: ["Waifu2x"]),
     ],
     targets: [
-        .target(name: "Waifu2x"),
+        .target(
+            name: "Waifu2x",
+            resources: [.process("models")]
+        ),
         .testTarget(
             name: "Waifu2xTests",
-            dependencies: ["Waifu2x"]
+            dependencies: ["Waifu2x"],
+            resources: [.copy("white.png")]
         ),
     ],
     swiftLanguageModes: [.v5]

@@ -10,7 +10,7 @@ import Foundation
 import CoreML
 import AppKit
 
-public struct Waifu2x {
+public class Waifu2x {
     
     /// The output block size.
     /// It is dependent on the model.
@@ -53,7 +53,7 @@ public struct Waifu2x {
         let height = Int(image.representations[0].pixelsHigh)
         var fullWidth = width
         var fullHeight = height
-        guard var cgimg = image.representations[0].cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+        guard let cgimg = image.representations[0].cgImage(forProposedRect: nil, context: nil, hints: nil) else {
             print("Failed to get CGImage")
             return nil
         }
