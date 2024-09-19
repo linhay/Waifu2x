@@ -8,7 +8,7 @@
 
 import CoreML
 
-public enum Model: String, CaseIterable {
+public enum Waifu2xModel: String, CaseIterable {
     case anime_noise0 = "anime_noise0_model"
     case anime_noise1 = "anime_noise1_model"
     case anime_noise2 = "anime_noise2_model"

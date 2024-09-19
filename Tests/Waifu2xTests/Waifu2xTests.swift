@@ -13,12 +13,21 @@ extension NSImage {
     }
 }
 
+@Test func testModel() async throws {
+    let bundle = Bundle.module
+    let path = bundle.path(forResource: "white", ofType: "png")!
+    let data = NSData(contentsOfFile: path)
+    let image = NSImage(data: data! as Data)!
+    let waifu2x = Waifu2x(model: Waifu2xModel.photo_noise2_scale2x)
+    assert(waifu2x.run(image) != nil)
+}
+
 @Test func testAllModels() async throws {
     let bundle = Bundle.module
     let path = bundle.path(forResource: "white", ofType: "png")!
     let data = NSData(contentsOfFile: path)
     let image = NSImage(data: data! as Data)!
-    for model in Model.allCases {
+    for model in Waifu2xModel.allCases {
         print(model)
         let waifu2x = Waifu2x(model: model)
         assert(waifu2x.run(image) != nil)

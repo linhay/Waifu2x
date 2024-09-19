@@ -27,7 +27,7 @@ public struct Waifu2x {
 
     private let mlmodel: MLModel
 
-    public init(model: Model) {
+    public init(model: Waifu2xModel) {
         switch model {
         case .anime_noise0, .anime_noise1, .anime_noise2, .anime_noise3, .photo_noise0, .photo_noise1, .photo_noise2, .photo_noise3:
             block_size = 128
