@@ -9,6 +9,7 @@
 
 import Foundation
 import Cocoa
+import AppKit
 
 public extension NSImage {
     var pngData: Data? {

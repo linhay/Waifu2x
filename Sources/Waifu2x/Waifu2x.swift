@@ -8,6 +8,7 @@
 
 import Foundation
 import CoreML
+import AppKit
 
 public struct Waifu2x {
     
