@@ -12,8 +12,6 @@ class BackgroundPipeline<T> {
     /// Count of all input objects
     private let count: Int
 
-    private var index: Int = 0
-
     /// Track the number of objects in FIFO buffer.
     private let work_sem = DispatchSemaphore(value: 0)
 

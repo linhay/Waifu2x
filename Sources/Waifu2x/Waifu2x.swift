@@ -40,12 +40,6 @@ public struct Waifu2x {
     }
 
     public func run(_ image: NSImage) -> NSImage? {
-        // pipelines
-        var in_pipeline: BackgroundPipeline<CGRect>!
-        var model_pipeline: BackgroundPipeline<MLMultiArray>!
-        var out_pipeline: BackgroundPipeline<MLMultiArray>!
-        // end pipeline
-
         let width = Int(image.representations[0].pixelsWide)
         let height = Int(image.representations[0].pixelsHigh)
         var fullWidth = width
@@ -159,7 +153,7 @@ public struct Waifu2x {
             }
         }
         // Output
-        out_pipeline = BackgroundPipeline<MLMultiArray>("out_pipeline", count: rects.count) { index, array in
+        let out_pipeline = BackgroundPipeline<MLMultiArray>("out_pipeline", count: rects.count) { index, array in
             let rect = rects[index]
             let origin_x = Int(rect.origin.x) * self.out_scale
             let origin_y = Int(rect.origin.y) * self.out_scale
@@ -186,7 +180,7 @@ public struct Waifu2x {
         }
         // Prepare for model pipeline
         // Run prediction on each block
-        model_pipeline = BackgroundPipeline<MLMultiArray>("model_pipeline", count: rects.count) { _, array in
+        let model_pipeline = BackgroundPipeline<MLMultiArray>("model_pipeline", count: rects.count) { _, array in
             out_pipeline.appendObject(try! self.mlmodel.prediction(input: array))
 //            callback("\((index * 100) / rects.count)")
         }
@@ -195,7 +189,7 @@ public struct Waifu2x {
         let expheight = fullHeight + 2 * shrink_size
         let expanded = fullCG.expand(withAlpha: hasalpha, shrink_size: shrink_size, clip_eta8: clip_eta8)
 //        callback("processing")
-        in_pipeline = BackgroundPipeline<CGRect>("in_pipeline", count: rects.count, task: { _, rect in
+        let in_pipeline = BackgroundPipeline<CGRect>("in_pipeline", count: rects.count, task: { _, rect in
             let x = Int(rect.origin.x)
             let y = Int(rect.origin.y)
             let multi = try! MLMultiArray(shape: [
