@@ -33,3 +33,19 @@ extension NSImage {
         assert(waifu2x.run(image) != nil)
     }
 }
+
+@Test func testAllModelsAsync() async throws {
+    await withTaskGroup(of: Void.self) { group in
+        for model in Waifu2xModel.allCases {
+            group.addTask {
+                let bundle = Bundle.module
+                let path = bundle.path(forResource: "white", ofType: "png")!
+                let data = NSData(contentsOfFile: path)
+                let image = NSImage(data: data! as Data)!
+                print(model)
+                let waifu2x = Waifu2x(model: model)
+                assert(waifu2x.run(image) != nil)
+            }
+        }
+    }
+}
