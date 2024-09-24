@@ -119,14 +119,15 @@ public struct Waifu2x {
             imgData.deallocate()
         }
         // Alpha channel support
-        var alpha_task: BackgroundTask?
+        var alpha_task: AlphaTask?
         if hasalpha {
-            alpha_task = BackgroundTask("alpha") {
+            alpha_task = AlphaTask()
+            alpha_task?.run {
                 if self.out_scale > 1 {
-                    var outalpha: [UInt8]? = nil
+                    var outalpha: [UInt8]?
                     if let metalBicubic = try? MetalBicubic() {
                         NSLog("Maximum texture size supported: %d", metalBicubic.maxTextureSize())
-                        if out_width <= metalBicubic.maxTextureSize() && out_height <= metalBicubic.maxTextureSize() {
+                        if out_width <= metalBicubic.maxTextureSize(), out_height <= metalBicubic.maxTextureSize() {
                             outalpha = metalBicubic.resizeSingle(alpha, width, height, Float(self.out_scale))
                         }
                     }
@@ -137,7 +138,7 @@ public struct Waifu2x {
                             break
                         }
                     }
-                    if outalpha != nil && !emptyAlpha {
+                    if outalpha != nil, !emptyAlpha {
                         alpha = outalpha!
                     } else {
                         // Fallback to CPU scale
@@ -153,12 +154,13 @@ public struct Waifu2x {
             }
         }
         // Output
-        let out_pipeline = BackgroundPipeline<MLMultiArray>("out_pipeline", count: rects.count) { index, array in
+        let out_pipeline = OutputTask(total: rects.count) { index, array in
             let rect = rects[index]
             let origin_x = Int(rect.origin.x) * self.out_scale
             let origin_y = Int(rect.origin.y) * self.out_scale
-            let dataPointer = UnsafeMutableBufferPointer(start: array.dataPointer.assumingMemoryBound(to: Double.self),
-                                                         count: bufferSize)
+            let dataPointer = UnsafeMutableBufferPointer(
+                start: array.dataPointer.assumingMemoryBound(to: Double.self), count: bufferSize
+            )
             var dest_x: Int
             var dest_y: Int
             var src_index: Int
@@ -180,16 +182,13 @@ public struct Waifu2x {
         }
         // Prepare for model pipeline
         // Run prediction on each block
-        let model_pipeline = BackgroundPipeline<MLMultiArray>("model_pipeline", count: rects.count) { _, array in
-            out_pipeline.appendObject(try! self.mlmodel.prediction(input: array))
-//            callback("\((index * 100) / rects.count)")
-        }
+        let model_pipeline = ModelTask(out_pipeline, model: mlmodel)
         // Start running model
         let expwidth = fullWidth + 2 * shrink_size
         let expheight = fullHeight + 2 * shrink_size
         let expanded = fullCG.expand(withAlpha: hasalpha, shrink_size: shrink_size, clip_eta8: clip_eta8)
 //        callback("processing")
-        let in_pipeline = BackgroundPipeline<CGRect>("in_pipeline", count: rects.count, task: { _, rect in
+        let in_pipeline = InputTask(model_pipeline) { rect in
             let x = Int(rect.origin.x)
             let y = Int(rect.origin.y)
             let multi = try! MLMultiArray(shape: [
@@ -211,17 +210,14 @@ public struct Waifu2x {
                     multi[dest] = NSNumber(value: expanded[y_exp * expwidth + x_exp + expwidth * expheight * 2])
                 }
             }
-            model_pipeline.appendObject(multi)
-        })
-        for i in 0 ..< rects.count {
-            in_pipeline.appendObject(rects[i])
+            return multi
         }
-        in_pipeline.wait()
-        model_pipeline.wait()
-//        callback("wait_alpha")
+        for i in 0 ..< rects.count {
+            in_pipeline.run(idx: i, rect: rects[i])
+        }
         alpha_task?.wait()
         out_pipeline.wait()
-//        callback("generate_output")
+
         let cfbuffer = CFDataCreate(nil, imgData, out_width * out_height * channels)!
         let dataProvider = CGDataProvider(data: cfbuffer)!
         let colorSpace = CGColorSpaceCreateDeviceRGB()
