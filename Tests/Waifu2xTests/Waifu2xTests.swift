@@ -22,7 +22,7 @@ extension NSImage {
     assert(waifu2x.run(image) != nil)
 }
 
-@Test func testAllModels() async throws {
+@Test func testAllModels() throws {
     let bundle = Bundle.module
     let path = bundle.path(forResource: "white", ofType: "png")!
     let data = NSData(contentsOfFile: path)
@@ -31,6 +31,50 @@ extension NSImage {
         print(model)
         let waifu2x = Waifu2x(model: model)
         assert(waifu2x.run(image) != nil)
+    }
+}
+
+@Test func testAllModelsGroup() throws {
+    let queue = DispatchQueue(label: "test", attributes: .concurrent)
+    let group = DispatchGroup()
+    for model in Waifu2xModel.allCases {
+        queue.async(group: group) {
+            let bundle = Bundle.module
+            let path = bundle.path(forResource: "white", ofType: "png")!
+            let data = NSData(contentsOfFile: path)
+            let image = NSImage(data: data! as Data)!
+            print(model)
+            let waifu2x = Waifu2x(model: model)
+            assert(waifu2x.run(image) != nil)
+        }
+    }
+    group.wait()
+}
+
+@Test func testModelAsync() async throws {
+    let task = Task {
+        let bundle = Bundle.module
+        let path = bundle.path(forResource: "white", ofType: "png")!
+        let data = NSData(contentsOfFile: path)
+        let image = NSImage(data: data! as Data)!
+        let waifu2x = Waifu2x(model: .photo_noise2_scale2x)
+        assert(waifu2x.run(image) != nil)
+    }
+    _ = await task.result
+}
+
+@Test func testMultiImageAsync() async throws {
+    let waifu2x = Waifu2x(model: Waifu2xModel.photo_noise1_scale2x)
+    await withTaskGroup(of: Void.self) { group in
+        for _ in 0 ..< 10 {
+            group.addTask {
+                let bundle = Bundle.module
+                let path = bundle.path(forResource: "white", ofType: "png")!
+                let data = NSData(contentsOfFile: path)
+                let image = NSImage(data: data! as Data)!
+                assert(waifu2x.run(image) != nil)
+            }
+        }
     }
 }
 

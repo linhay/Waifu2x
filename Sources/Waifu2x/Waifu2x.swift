@@ -119,10 +119,9 @@ public struct Waifu2x {
             imgData.deallocate()
         }
         // Alpha channel support
-        var alpha_task: AlphaTask?
+        var alpha_task: (() async -> Void)?
         if hasalpha {
-            alpha_task = AlphaTask()
-            alpha_task?.run {
+            alpha_task = {
                 if self.out_scale > 1 {
                     var outalpha: [UInt8]?
                     if let metalBicubic = try? MetalBicubic() {
@@ -153,70 +152,80 @@ public struct Waifu2x {
                 }
             }
         }
-        // Output
-        let out_pipeline = OutputTask(total: rects.count) { index, array in
-            let rect = rects[index]
-            let origin_x = Int(rect.origin.x) * self.out_scale
-            let origin_y = Int(rect.origin.y) * self.out_scale
-            let dataPointer = UnsafeMutableBufferPointer(
-                start: array.dataPointer.assumingMemoryBound(to: Double.self), count: bufferSize
-            )
-            var dest_x: Int
-            var dest_y: Int
-            var src_index: Int
-            var dest_index: Int
-            for channel in 0 ..< 3 {
-                for src_y in 0 ..< out_block_size {
-                    for src_x in 0 ..< out_block_size {
-                        dest_x = origin_x + src_x
-                        dest_y = origin_y + src_y
-                        if dest_x >= out_fullWidth || dest_y >= out_fullHeight {
-                            continue
-                        }
-                        src_index = src_y * out_block_size + src_x + out_block_size * out_block_size * channel
-                        dest_index = (dest_y * out_width + dest_x) * channels + channel
-                        imgData[dest_index] = UInt8(normalize(dataPointer[src_index]))
-                    }
-                }
-            }
-        }
-        // Prepare for model pipeline
-        // Run prediction on each block
-        let model_pipeline = ModelTask(out_pipeline, total: rects.count, model: mlmodel)
-        // Start running model
+
         let expwidth = fullWidth + 2 * shrink_size
         let expheight = fullHeight + 2 * shrink_size
         let expanded = fullCG.expand(withAlpha: hasalpha, shrink_size: shrink_size, clip_eta8: clip_eta8)
-//        callback("processing")
-        let in_pipeline = InputTask(model_pipeline) { rect in
-            let x = Int(rect.origin.x)
-            let y = Int(rect.origin.y)
-            let multi = try! MLMultiArray(shape: [
-                3,
-                NSNumber(value: self.block_size + 2 * self.shrink_size),
-                NSNumber(value: self.block_size + 2 * self.shrink_size),
-            ], dataType: .float32)
-            var x_new: Int
-            var y_new: Int
-            for y_exp in y ..< (y + self.block_size + 2 * self.shrink_size) {
-                for x_exp in x ..< (x + self.block_size + 2 * self.shrink_size) {
-                    x_new = x_exp - x
-                    y_new = y_exp - y
-                    var dest = y_new * (self.block_size + 2 * self.shrink_size) + x_new
-                    multi[dest] = NSNumber(value: expanded[y_exp * expwidth + x_exp])
-                    dest = y_new * (self.block_size + 2 * self.shrink_size) + x_new + (self.block_size + 2 * self.shrink_size) * (self.block_size + 2 * self.shrink_size)
-                    multi[dest] = NSNumber(value: expanded[y_exp * expwidth + x_exp + expwidth * expheight])
-                    dest = y_new * (self.block_size + 2 * self.shrink_size) + x_new + (self.block_size + 2 * self.shrink_size) * (self.block_size + 2 * self.shrink_size) * 2
-                    multi[dest] = NSNumber(value: expanded[y_exp * expwidth + x_exp + expwidth * expheight * 2])
+        let pipeline = PipelineTask(
+            input: { rect in
+                let x = Int(rect.origin.x)
+                let y = Int(rect.origin.y)
+                let multi = try! MLMultiArray(shape: [
+                    3,
+                    NSNumber(value: self.block_size + 2 * self.shrink_size),
+                    NSNumber(value: self.block_size + 2 * self.shrink_size),
+                ], dataType: .float32)
+                var x_new: Int
+                var y_new: Int
+                for y_exp in y ..< (y + self.block_size + 2 * self.shrink_size) {
+                    for x_exp in x ..< (x + self.block_size + 2 * self.shrink_size) {
+                        x_new = x_exp - x
+                        y_new = y_exp - y
+                        var dest = y_new * (self.block_size + 2 * self.shrink_size) + x_new
+                        multi[dest] = NSNumber(value: expanded[y_exp * expwidth + x_exp])
+                        dest = y_new * (self.block_size + 2 * self.shrink_size) + x_new + (self.block_size + 2 * self.shrink_size) * (self.block_size + 2 * self.shrink_size)
+                        multi[dest] = NSNumber(value: expanded[y_exp * expwidth + x_exp + expwidth * expheight])
+                        dest = y_new * (self.block_size + 2 * self.shrink_size) + x_new + (self.block_size + 2 * self.shrink_size) * (self.block_size + 2 * self.shrink_size) * 2
+                        multi[dest] = NSNumber(value: expanded[y_exp * expwidth + x_exp + expwidth * expheight * 2])
+                    }
+                }
+                return multi
+            },
+            model: mlmodel,
+            output: { index, array in
+                let rect = rects[index]
+                let origin_x = Int(rect.origin.x) * self.out_scale
+                let origin_y = Int(rect.origin.y) * self.out_scale
+                let dataPointer = UnsafeMutableBufferPointer(
+                    start: array.dataPointer.assumingMemoryBound(to: Double.self), count: bufferSize
+                )
+                var dest_x: Int
+                var dest_y: Int
+                var src_index: Int
+                var dest_index: Int
+                for channel in 0 ..< 3 {
+                    for src_y in 0 ..< out_block_size {
+                        for src_x in 0 ..< out_block_size {
+                            dest_x = origin_x + src_x
+                            dest_y = origin_y + src_y
+                            if dest_x >= out_fullWidth || dest_y >= out_fullHeight {
+                                continue
+                            }
+                            src_index = src_y * out_block_size + src_x + out_block_size * out_block_size * channel
+                            dest_index = (dest_y * out_width + dest_x) * channels + channel
+                            imgData[dest_index] = UInt8(normalize(dataPointer[src_index]))
+                        }
+                    }
                 }
             }
-            return multi
+        )
+
+        let group = DispatchGroup()
+        group.enter()
+        Task {
+            await withTaskGroup(of: Void.self) { it in
+                it.addTask {
+                    await alpha_task?()
+                }
+                for i in 0 ..< rects.count {
+                    it.addTask {
+                        await pipeline.run(idx: i, rect: rects[i])
+                    }
+                }
+            }
+            group.leave()
         }
-        for i in 0 ..< rects.count {
-            in_pipeline.run(idx: i, rect: rects[i])
-        }
-        alpha_task?.wait()
-        out_pipeline.wait()
+        group.wait()
 
         let cfbuffer = CFDataCreate(nil, imgData, out_width * out_height * channels)!
         let dataProvider = CGDataProvider(data: cfbuffer)!
@@ -229,7 +238,6 @@ public struct Waifu2x {
         }
         let cgImage = CGImage(width: out_width, height: out_height, bitsPerComponent: 8, bitsPerPixel: 8 * channels, bytesPerRow: out_width * channels, space: colorSpace, bitmapInfo: CGBitmapInfo(rawValue: bitmapInfo), provider: dataProvider, decode: nil, shouldInterpolate: true, intent: CGColorRenderingIntent.defaultIntent)
         let outImage = NSImage(cgImage: cgImage!, size: CGSize(width: out_width, height: out_height))
-//        callback("finished")
         return outImage
     }
 }
