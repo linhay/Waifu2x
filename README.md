@@ -14,8 +14,8 @@
 原项目的部分代码不适合作为库使用，因此做了以下调整：
 
 - 删除所有全局变量，使用超分需要创建 Waifu2x 实例
-- 每个 Waifu2x 实例使用不可变属性，因此可以支持多线程调用
-- 实例中的 `MLModel` 和 方法参数 `NSImage` 不是 Sendable，请注意 async 边界问题
+- Waifu2x 实例方法更改为并发方法，以支持并发调用
+- 如果需要在 GCD 环境中使用，可以用 DispatchGroup 达到原先的效果，参见 `Tests/Waifu2xTests/Waifu2xTests.swift` 中的 `testGCD` 示例
 
 ## 开源许可
 
