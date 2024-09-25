@@ -9,8 +9,6 @@
 import Metal
 import MetalKit
 
-struct MetalNotAvailableError: Error {}
-
 struct MetalBicubic {
     let device: MTLDevice!
     let library: MTLLibrary!
@@ -19,7 +17,7 @@ struct MetalBicubic {
     init() throws {
         device = MTLCreateSystemDefaultDevice()
         guard device != nil else {
-            throw MetalNotAvailableError()
+            throw Waifu2xError.metalNotAvailable
         }
         library = try device.makeDefaultLibrary(bundle: Bundle.module)
         commandQueue = device.makeCommandQueue()

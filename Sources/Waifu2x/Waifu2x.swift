@@ -39,14 +39,13 @@ public struct Waifu2x {
         mlmodel = model.getMLModel()
     }
 
-    public func run(_ image: NSImage) -> NSImage? {
+    public func run(_ image: NSImage) async throws -> NSImage {
         let width = Int(image.representations[0].pixelsWide)
         let height = Int(image.representations[0].pixelsHigh)
         var fullWidth = width
         var fullHeight = height
         guard let cgimg = image.representations[0].cgImage(forProposedRect: nil, context: nil, hints: nil) else {
-            print("Failed to get CGImage")
-            return nil
+            throw Waifu2xError.getCGImageFailed
         }
         var fullCG = cgimg
 
@@ -71,7 +70,7 @@ public struct Waifu2x {
             }
             context?.draw(cgimg, in: CGRect(x: 0, y: y, width: width, height: height))
             guard let contextCG = context?.makeImage() else {
-                return nil
+                throw Waifu2xError.expandImageFailed
             }
             fullCG = contextCG
         }
@@ -210,22 +209,16 @@ public struct Waifu2x {
             }
         )
 
-        let group = DispatchGroup()
-        group.enter()
-        Task {
-            await withTaskGroup(of: Void.self) { it in
+        await withTaskGroup(of: Void.self) { it in
+            it.addTask {
+                await alpha_task?()
+            }
+            for i in 0 ..< rects.count {
                 it.addTask {
-                    await alpha_task?()
-                }
-                for i in 0 ..< rects.count {
-                    it.addTask {
-                        await pipeline.run(idx: i, rect: rects[i])
-                    }
+                    await pipeline.run(idx: i, rect: rects[i])
                 }
             }
-            group.leave()
         }
-        group.wait()
 
         let cfbuffer = CFDataCreate(nil, imgData, out_width * out_height * channels)!
         let dataProvider = CGDataProvider(data: cfbuffer)!

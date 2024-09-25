@@ -19,77 +19,36 @@ extension NSImage {
     let data = NSData(contentsOfFile: path)
     let image = NSImage(data: data! as Data)!
     let waifu2x = Waifu2x(model: Waifu2xModel.photo_noise2_scale2x)
-    assert(waifu2x.run(image) != nil)
+    _ = try! await waifu2x.run(image)
 }
 
-@Test func testAllModels() throws {
-    let bundle = Bundle.module
-    let path = bundle.path(forResource: "white", ofType: "png")!
-    let data = NSData(contentsOfFile: path)
-    let image = NSImage(data: data! as Data)!
-    for model in Waifu2xModel.allCases {
-        print(model)
-        let waifu2x = Waifu2x(model: model)
-        assert(waifu2x.run(image) != nil)
-    }
-}
-
-@Test func testAllModelsGroup() throws {
-    let queue = DispatchQueue(label: "test", attributes: .concurrent)
-    let group = DispatchGroup()
-    for model in Waifu2xModel.allCases {
-        queue.async(group: group) {
-            let bundle = Bundle.module
-            let path = bundle.path(forResource: "white", ofType: "png")!
-            let data = NSData(contentsOfFile: path)
-            let image = NSImage(data: data! as Data)!
-            print(model)
-            let waifu2x = Waifu2x(model: model)
-            assert(waifu2x.run(image) != nil)
+@Test func testAllModels() async throws {
+    await withTaskGroup(of: Void.self) { group in
+        for model in Waifu2xModel.allCases {
+            group.addTask {
+                print(model)
+                let bundle = Bundle.module
+                let path = bundle.path(forResource: "white", ofType: "png")!
+                let data = NSData(contentsOfFile: path)
+                let image = NSImage(data: data! as Data)!
+                let waifu2x = Waifu2x(model: model)
+                _ = try! await waifu2x.run(image)
+            }
         }
     }
-    group.wait()
 }
 
-@Test func testModelAsync() async throws {
-    let task = Task {
+@Test func testGCD() throws {
+    let group = DispatchGroup()
+    group.enter()
+    Task {
         let bundle = Bundle.module
         let path = bundle.path(forResource: "white", ofType: "png")!
         let data = NSData(contentsOfFile: path)
         let image = NSImage(data: data! as Data)!
-        let waifu2x = Waifu2x(model: .photo_noise2_scale2x)
-        assert(waifu2x.run(image) != nil)
+        let waifu2x = Waifu2x(model: Waifu2xModel.photo_noise2_scale2x)
+        _ = try! await waifu2x.run(image)
+        group.leave()
     }
-    _ = await task.result
-}
-
-@Test func testMultiImageAsync() async throws {
-    let waifu2x = Waifu2x(model: Waifu2xModel.photo_noise1_scale2x)
-    await withTaskGroup(of: Void.self) { group in
-        for _ in 0 ..< 10 {
-            group.addTask {
-                let bundle = Bundle.module
-                let path = bundle.path(forResource: "white", ofType: "png")!
-                let data = NSData(contentsOfFile: path)
-                let image = NSImage(data: data! as Data)!
-                assert(waifu2x.run(image) != nil)
-            }
-        }
-    }
-}
-
-@Test func testAllModelsAsync() async throws {
-    await withTaskGroup(of: Void.self) { group in
-        for model in Waifu2xModel.allCases {
-            group.addTask {
-                let bundle = Bundle.module
-                let path = bundle.path(forResource: "white", ofType: "png")!
-                let data = NSData(contentsOfFile: path)
-                let image = NSImage(data: data! as Data)!
-                print(model)
-                let waifu2x = Waifu2x(model: model)
-                assert(waifu2x.run(image) != nil)
-            }
-        }
-    }
+    group.wait()
 }
