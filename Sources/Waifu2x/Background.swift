@@ -38,29 +38,67 @@ class InputTask {
     }
 }
 
-class ModelTask {
-    private static let queue = DispatchQueue(label: "top.vuhe.waifu-model", attributes: .concurrent)
-    /// Make sure only one thread visit var value
-    private let work_sem = DispatchSemaphore(value: 1)
+// MARK: - waifu2x model handle
+
+/// Model Prediction Input Type
+private final class Waifu2xInput: MLFeatureProvider {
+    let input: MLMultiArray
+    var featureNames: Set<String> { ["input"] }
+
+    init(input: MLMultiArray) {
+        self.input = input
+    }
+
+    func featureValue(for featureName: String) -> MLFeatureValue? {
+        return if featureName == "input" { MLFeatureValue(multiArray: input) }
+        else { nil }
+    }
+}
+
+class ModelTask: MLBatchProvider {
+    private static let queue = DispatchQueue(label: "top.vuhe.waifu-model")
     /// Output task
     private let nextTask: OutputTask
-    /// batch handle model
+    /// Batch handle model
     private let model: MLModel
+    /// Need handle item total
+    private let total: Int
+    /// Handled item total
+    private var inputCount = 0
+    /// Save input as batch
+    private var inputMap: [Int: MLMultiArray] = [:]
 
-    init(_ nextTask: OutputTask, model: MLModel) {
+    var count: Int { total }
+
+    init(_ nextTask: OutputTask, total: Int, model: MLModel) {
         self.nextTask = nextTask
+        self.total = total
         self.model = model
     }
 
     fileprivate func run(idx: Int, _ array: MLMultiArray) {
         Self.queue.async {
-            let output = try! self.model.prediction(input: array)
-            self.work_sem.wait()
-            self.nextTask.run(idx: idx, output)
-            self.work_sem.signal()
+            self.inputMap[idx] = array
+            self.inputCount += 1
+            if self.inputCount >= self.total {
+                autoreleasepool {
+                    let output = try! self.model.predictions(fromBatch: self)
+                    self.inputMap = [:]
+                    for i in 0 ..< self.total {
+                        let result = output.features(at: i).featureValue(for: "conv7")!.multiArrayValue!
+                        self.nextTask.run(idx: i, result)
+                    }
+                }
+            }
         }
     }
+
+    func features(at index: Int) -> any MLFeatureProvider {
+        Waifu2xInput(input: inputMap[index]!)
+    }
 }
+
+// MARK: - output stage
 
 class OutputTask {
     private static let queue = DispatchQueue(label: "top.vuhe.waifu-output", attributes: .concurrent)

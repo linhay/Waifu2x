@@ -5,7 +5,7 @@ import PackageDescription
 
 let package = Package(
     name: "Waifu2x",
-    platforms: [.macOS(.v10_13)],
+    platforms: [.macOS(.v10_14)],
     products: [
         .library(name: "Waifu2x", targets: ["Waifu2x"]),
     ],

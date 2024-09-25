@@ -182,7 +182,7 @@ public struct Waifu2x {
         }
         // Prepare for model pipeline
         // Run prediction on each block
-        let model_pipeline = ModelTask(out_pipeline, model: mlmodel)
+        let model_pipeline = ModelTask(out_pipeline, total: rects.count, model: mlmodel)
         // Start running model
         let expwidth = fullWidth + 2 * shrink_size
         let expheight = fullHeight + 2 * shrink_size
