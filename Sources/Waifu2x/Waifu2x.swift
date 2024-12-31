@@ -3,9 +3,11 @@
 //  waifu2x-mac
 //
 //  Created by xieyi on 2018/1/24.
+//  Modify by vuhe.
 //  Copyright © 2018年 xieyi. All rights reserved.
 //
 
+import Accelerate
 import AppKit
 import CoreML
 
@@ -122,26 +124,18 @@ public struct Waifu2x {
         if hasalpha {
             alpha_task = {
                 if self.out_scale > 1 {
-                    var outalpha: [UInt8]?
-                    if let metalBicubic = try? MetalBicubic() {
-                        NSLog("Maximum texture size supported: %d", metalBicubic.maxTextureSize())
-                        if out_width <= metalBicubic.maxTextureSize(), out_height <= metalBicubic.maxTextureSize() {
-                            outalpha = metalBicubic.resizeSingle(alpha, width, height, Float(self.out_scale))
-                        }
-                    }
-                    var emptyAlpha = true
-                    for item in outalpha ?? [] {
-                        if item > 0 {
-                            emptyAlpha = false
-                            break
-                        }
-                    }
-                    if outalpha != nil, !emptyAlpha {
-                        alpha = outalpha!
-                    } else {
-                        // Fallback to CPU scale
+                    do {
+                        alpha = try VImageUtils.scaleAlphaChannel(
+                            alpha: alpha,
+                            width: width,
+                            height: height,
+                            scale: self.out_scale
+                        )
+                    } catch {
+                        // 如果 vImage 处理失败,回退到原来的 CPU 缩放方法
                         let bicubic = Bicubic(image: alpha, channels: 1, width: width, height: height)
                         alpha = bicubic.resize(scale: Float(self.out_scale))
+                        debugPrint("use vImage scale fail, back to bicubic")
                     }
                 }
                 for y in 0 ..< out_height {
@@ -159,26 +153,65 @@ public struct Waifu2x {
             input: { rect in
                 let x = Int(rect.origin.x)
                 let y = Int(rect.origin.y)
-                let multi = try! MLMultiArray(shape: [
-                    3,
-                    NSNumber(value: self.block_size + 2 * self.shrink_size),
-                    NSNumber(value: self.block_size + 2 * self.shrink_size),
-                ], dataType: .float32)
-                var x_new: Int
-                var y_new: Int
-                for y_exp in y ..< (y + self.block_size + 2 * self.shrink_size) {
-                    for x_exp in x ..< (x + self.block_size + 2 * self.shrink_size) {
-                        x_new = x_exp - x
-                        y_new = y_exp - y
-                        var dest = y_new * (self.block_size + 2 * self.shrink_size) + x_new
-                        multi[dest] = NSNumber(value: expanded[y_exp * expwidth + x_exp])
-                        dest = y_new * (self.block_size + 2 * self.shrink_size) + x_new + (self.block_size + 2 * self.shrink_size) * (self.block_size + 2 * self.shrink_size)
-                        multi[dest] = NSNumber(value: expanded[y_exp * expwidth + x_exp + expwidth * expheight])
-                        dest = y_new * (self.block_size + 2 * self.shrink_size) + x_new + (self.block_size + 2 * self.shrink_size) * (self.block_size + 2 * self.shrink_size) * 2
-                        multi[dest] = NSNumber(value: expanded[y_exp * expwidth + x_exp + expwidth * expheight * 2])
+                do {
+                    // 使用 vImage 转换数据格式
+                    let blockSize = self.block_size + 2 * self.shrink_size
+                    let startIndex = y * expwidth + x
+                    _ = startIndex + blockSize * expwidth // endIndex
+
+                    // 提取需要的数据块
+                    var blockData = [Float]()
+                    blockData.reserveCapacity(blockSize * blockSize * 3)
+
+                    // 复制 R 通道数据
+                    for i in 0 ..< blockSize {
+                        let rowStart = startIndex + i * expwidth
+                        blockData.append(contentsOf: expanded[rowStart ..< rowStart + blockSize])
                     }
+
+                    // 复制 G 通道数据
+                    let gOffset = expwidth * expheight
+                    for i in 0 ..< blockSize {
+                        let rowStart = startIndex + i * expwidth + gOffset
+                        blockData.append(contentsOf: expanded[rowStart ..< rowStart + blockSize])
+                    }
+
+                    // 复制 B 通道数据
+                    let bOffset = 2 * expwidth * expheight
+                    for i in 0 ..< blockSize {
+                        let rowStart = startIndex + i * expwidth + bOffset
+                        blockData.append(contentsOf: expanded[rowStart ..< rowStart + blockSize])
+                    }
+
+                    return try VImageUtils.convertToMLMultiArray(
+                        rgbBuffer: blockData,
+                        width: blockSize,
+                        height: blockSize
+                    )
+                } catch {
+                    // 回退到原始方法
+                    let multi = try! MLMultiArray(shape: [
+                        3,
+                        NSNumber(value: self.block_size + 2 * self.shrink_size),
+                        NSNumber(value: self.block_size + 2 * self.shrink_size),
+                    ], dataType: .float32)
+                    var x_new: Int
+                    var y_new: Int
+                    for y_exp in y ..< (y + self.block_size + 2 * self.shrink_size) {
+                        for x_exp in x ..< (x + self.block_size + 2 * self.shrink_size) {
+                            x_new = x_exp - x
+                            y_new = y_exp - y
+                            var dest = y_new * (self.block_size + 2 * self.shrink_size) + x_new
+                            multi[dest] = NSNumber(value: expanded[y_exp * expwidth + x_exp])
+                            dest = y_new * (self.block_size + 2 * self.shrink_size) + x_new + (self.block_size + 2 * self.shrink_size) * (self.block_size + 2 * self.shrink_size)
+                            multi[dest] = NSNumber(value: expanded[y_exp * expwidth + x_exp + expwidth * expheight])
+                            dest = y_new * (self.block_size + 2 * self.shrink_size) + x_new + (self.block_size + 2 * self.shrink_size) * (self.block_size + 2 * self.shrink_size) * 2
+                            multi[dest] = NSNumber(value: expanded[y_exp * expwidth + x_exp + expwidth * expheight * 2])
+                        }
+                    }
+                    debugPrint("use vImage cover image fail, back to default")
+                    return multi
                 }
-                return multi
             },
             model: mlmodel,
             output: { index, array in
