@@ -28,7 +28,9 @@ public struct Waifu2x {
 
     private let mlmodel: MLModel
 
-    public init(model: Waifu2xModel) {
+    private let batchSize: Int
+
+    public init(model: Waifu2xModel, batchSize: Int = 10) {
         switch model {
         case .anime_noise0, .anime_noise1, .anime_noise2, .anime_noise3, .photo_noise0, .photo_noise1, .photo_noise2, .photo_noise3:
             block_size = 128
@@ -38,6 +40,7 @@ public struct Waifu2x {
             out_scale = 2
         }
         mlmodel = model.getMLModel()
+        self.batchSize = batchSize
     }
 
     public func run(_ image: NSImage) async throws -> NSImage {
@@ -212,13 +215,13 @@ public struct Waifu2x {
         )
 
         await withTaskGroup(of: Void.self) { it in
-            it.addTask {
-                await alpha_task?()
-            }
-            for i in 0 ..< rects.count {
-                it.addTask {
-                    await pipeline.run(idx: i, rect: rects[i])
-                }
+            it.addTask { await alpha_task?() }
+            var idx = 0
+            while idx < rects.count {
+                let startIdx = idx
+                let subRects = rects[idx ..< min(idx + batchSize, rects.count)]
+                it.addTask { pipeline.run(idx: startIdx, rects: subRects) }
+                idx += batchSize
             }
         }
 

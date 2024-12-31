@@ -27,13 +27,15 @@ struct PipelineTask {
     let model: MLModel
     let output: (Int, MLMultiArray) -> Void
 
-    func run(idx: Int, rect: CGRect) async {
-        let array = input(rect)
+    func run(idx: Int, rects: ArraySlice<CGRect>) {
+        let inputs = rects.map { Waifu2xInput(input: input($0)) }
+        let batch = MLArrayBatchProvider(array: inputs)
+        let outs = try! model.predictions(fromBatch: batch)
 
-        let input = Waifu2xInput(input: array)
-        let out = try! await model.prediction(from: input)
-        let result = out.featureValue(for: "conv7")!.multiArrayValue!
-
-        output(idx, result)
+        for i in 0 ..< outs.count {
+            let out = outs.features(at: i)
+            let result = out.featureValue(for: "conv7")!.multiArrayValue!
+            output(idx + i, result)
+        }
     }
 }
