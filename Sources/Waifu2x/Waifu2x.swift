@@ -7,7 +7,6 @@
 //  Copyright © 2018年 xieyi. All rights reserved.
 //
 
-import Accelerate
 import AppKit
 import CoreML
 
@@ -155,38 +154,10 @@ public struct Waifu2x {
                 let y = Int(rect.origin.y)
                 do {
                     // 使用 vImage 转换数据格式
-                    let blockSize = self.block_size + 2 * self.shrink_size
-                    let startIndex = y * expwidth + x
-                    _ = startIndex + blockSize * expwidth // endIndex
-
-                    // 提取需要的数据块
-                    var blockData = [Float]()
-                    blockData.reserveCapacity(blockSize * blockSize * 3)
-
-                    // 复制 R 通道数据
-                    for i in 0 ..< blockSize {
-                        let rowStart = startIndex + i * expwidth
-                        blockData.append(contentsOf: expanded[rowStart ..< rowStart + blockSize])
-                    }
-
-                    // 复制 G 通道数据
-                    let gOffset = expwidth * expheight
-                    for i in 0 ..< blockSize {
-                        let rowStart = startIndex + i * expwidth + gOffset
-                        blockData.append(contentsOf: expanded[rowStart ..< rowStart + blockSize])
-                    }
-
-                    // 复制 B 通道数据
-                    let bOffset = 2 * expwidth * expheight
-                    for i in 0 ..< blockSize {
-                        let rowStart = startIndex + i * expwidth + bOffset
-                        blockData.append(contentsOf: expanded[rowStart ..< rowStart + blockSize])
-                    }
-
                     return try VImageUtils.convertToMLMultiArray(
-                        rgbBuffer: blockData,
-                        width: blockSize,
-                        height: blockSize
+                        expanded: expanded, x: x, y: y,
+                        blockSize: self.block_size + 2 * self.shrink_size,
+                        expwidth: expwidth, expheight: expheight
                     )
                 } catch {
                     // 回退到原始方法

@@ -11,7 +11,39 @@ import CoreML
 
 enum VImageUtils {
     /// 使用 vImage 将 RGB 格式转换为 MLMultiArray 所需的平面格式
-    static func convertToMLMultiArray(rgbBuffer: [Float], width: Int, height: Int) throws -> MLMultiArray {
+    static func convertToMLMultiArray(
+        expanded: [Float], x: Int, y: Int,
+        blockSize: Int, expwidth: Int, expheight: Int
+    ) throws -> MLMultiArray {
+        let startIndex = y * expwidth + x
+        let endIndex = startIndex + blockSize * expwidth
+
+        // 提取需要的数据块
+        var rgbBuffer = [Float]()
+        rgbBuffer.reserveCapacity(blockSize * blockSize * 3)
+
+        // 复制 R 通道数据
+        for i in 0 ..< blockSize {
+            let rowStart = startIndex + i * expwidth
+            rgbBuffer.append(contentsOf: expanded[rowStart ..< rowStart + blockSize])
+        }
+
+        // 复制 G 通道数据
+        let gOffset = expwidth * expheight
+        for i in 0 ..< blockSize {
+            let rowStart = startIndex + i * expwidth + gOffset
+            rgbBuffer.append(contentsOf: expanded[rowStart ..< rowStart + blockSize])
+        }
+
+        // 复制 B 通道数据
+        let bOffset = 2 * expwidth * expheight
+        for i in 0 ..< blockSize {
+            let rowStart = startIndex + i * expwidth + bOffset
+            rgbBuffer.append(contentsOf: expanded[rowStart ..< rowStart + blockSize])
+        }
+
+        let width = blockSize
+        let height = blockSize
         let channelSize = width * height
 
         // 创建 MLMultiArray
@@ -42,7 +74,7 @@ enum VImageUtils {
         let newWidth = width * scale
         let newHeight = height * scale
 
-        return alpha.withUnsafeBufferPointer { buffer in
+        return try alpha.withUnsafeBufferPointer { buffer in
             // 创建源缓冲区
             var sourceBuffer = vImage_Buffer(
                 data: UnsafeMutableRawPointer(mutating: buffer.baseAddress!),
@@ -66,7 +98,7 @@ enum VImageUtils {
             let error = vImageScale_Planar8(&sourceBuffer, &destBufferInfo, nil, vImage_Flags(kvImageHighQualityResampling))
 
             guard error == kvImageNoError else {
-                return alpha // 如果缩放失败，返回原始数据
+                throw Waifu2xError.vImageScalingFailed
             }
 
             return Array(UnsafeBufferPointer(start: destBuffer, count: newWidth * newHeight))
