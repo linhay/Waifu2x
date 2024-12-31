@@ -15,58 +15,32 @@ enum VImageUtils {
         expanded: [Float], x: Int, y: Int,
         blockSize: Int, expwidth: Int, expheight: Int
     ) throws -> MLMultiArray {
-        let startIndex = y * expwidth + x
-        let endIndex = startIndex + blockSize * expwidth
-
-        // 提取需要的数据块
-        var rgbBuffer = [Float]()
-        rgbBuffer.reserveCapacity(blockSize * blockSize * 3)
-
-        // 复制 R 通道数据
-        for i in 0 ..< blockSize {
-            let rowStart = startIndex + i * expwidth
-            rgbBuffer.append(contentsOf: expanded[rowStart ..< rowStart + blockSize])
-        }
-
-        // 复制 G 通道数据
-        let gOffset = expwidth * expheight
-        for i in 0 ..< blockSize {
-            let rowStart = startIndex + i * expwidth + gOffset
-            rgbBuffer.append(contentsOf: expanded[rowStart ..< rowStart + blockSize])
-        }
-
-        // 复制 B 通道数据
-        let bOffset = 2 * expwidth * expheight
-        for i in 0 ..< blockSize {
-            let rowStart = startIndex + i * expwidth + bOffset
-            rgbBuffer.append(contentsOf: expanded[rowStart ..< rowStart + blockSize])
-        }
-
-        let width = blockSize
-        let height = blockSize
-        let channelSize = width * height
+        let channelSize = blockSize * blockSize
 
         // 创建 MLMultiArray
-        let shape: [NSNumber] = [3, NSNumber(value: height), NSNumber(value: width)]
+        let shape: [NSNumber] = [3, NSNumber(value: blockSize), NSNumber(value: blockSize)]
         let array = try MLMultiArray(shape: shape, dataType: .float32)
         let arrayPtr = array.dataPointer.assumingMemoryBound(to: Float.self)
 
-        // 直接复制数据到 MLMultiArray
-        rgbBuffer.withUnsafeBufferPointer { buffer in
-            // 分别复制 R、G、B 通道数据
+        return expanded.withUnsafeBufferPointer { buffer in
+            // 为每个通道处理数据
             for channel in 0 ..< 3 {
-                let sourceOffset = channel * channelSize
-                let destOffset = channel * channelSize
+                let channelOffset = channel * expwidth * expheight
 
-                memcpy(
-                    arrayPtr.advanced(by: destOffset),
-                    buffer.baseAddress?.advanced(by: sourceOffset),
-                    channelSize * MemoryLayout<Float>.size
-                )
+                // 使用 vDSP 进行优化的内存复制
+                for row in 0 ..< blockSize {
+                    let srcOffset = channelOffset + (y + row) * expwidth + x
+                    let destOffset = channel * channelSize + row * blockSize
+
+                    // 使用 vDSP 进行优化的内存复制
+                    let src = UnsafePointer(buffer.baseAddress!.advanced(by: srcOffset))
+                    let dest = UnsafeMutablePointer(arrayPtr.advanced(by: destOffset))
+                    vDSP_mmov(src, dest, vDSP_Length(blockSize), 1, 1, 1)
+                }
             }
-        }
 
-        return array
+            return array
+        }
     }
 
     /// 使用 vImage 处理 alpha 通道缩放
@@ -96,10 +70,7 @@ enum VImageUtils {
 
             // 执行缩放
             let error = vImageScale_Planar8(&sourceBuffer, &destBufferInfo, nil, vImage_Flags(kvImageHighQualityResampling))
-
-            guard error == kvImageNoError else {
-                throw Waifu2xError.vImageScalingFailed
-            }
+            guard error == kvImageNoError else { throw Waifu2xError.vImageScalingFailed }
 
             return Array(UnsafeBufferPointer(start: destBuffer, count: newWidth * newHeight))
         }

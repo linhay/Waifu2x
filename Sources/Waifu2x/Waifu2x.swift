@@ -115,9 +115,7 @@ public struct Waifu2x {
         }
         let bufferSize = out_block_size * out_block_size * 3
         let imgData = UnsafeMutablePointer<UInt8>.allocate(capacity: out_width * out_height * channels)
-        defer {
-            imgData.deallocate()
-        }
+        defer { imgData.deallocate() }
         // Alpha channel support
         var alpha_task: (() async -> Void)?
         if hasalpha {
@@ -147,7 +145,7 @@ public struct Waifu2x {
 
         let expwidth = fullWidth + 2 * shrink_size
         let expheight = fullHeight + 2 * shrink_size
-        let expanded = fullCG.expand(withAlpha: hasalpha, shrink_size: shrink_size, clip_eta8: clip_eta8)
+        let expanded = fullCG.expand(shrink_size: shrink_size, clip_eta8: clip_eta8)
         let pipeline = PipelineTask(
             input: { rect in
                 let x = Int(rect.origin.x)

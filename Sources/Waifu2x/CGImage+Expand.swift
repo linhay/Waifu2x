@@ -13,7 +13,7 @@ extension CGImage {
     /// The model will shrink the input image by 7 px.
     ///
     /// - Returns: Float array of rgb values
-    func expand(withAlpha: Bool, shrink_size: Int, clip_eta8: Float) -> [Float] {
+    func expand(shrink_size: Int, clip_eta8: Float) -> [Float] {
         let rect = NSRect(origin: .zero, size: CGSize(width: width, height: height))
 
         // Redraw image in 32-bit RGBA
@@ -31,7 +31,7 @@ extension CGImage {
         var arr = [Float](repeating: 0, count: 3 * exwidth * exheight)
 
         var xx, yy, pixel: Int
-        var r, g, b, a: UInt8
+        var r, g, b: UInt8
         var fr, fg, fb: Float
         // http://www.jianshu.com/p/516f01fed6e4
         for y in 0 ..< height {
@@ -47,14 +47,7 @@ extension CGImage {
                 fr = Float(r) / 255 + clip_eta8
                 fg = Float(g) / 255 + clip_eta8
                 fb = Float(b) / 255 + clip_eta8
-                if withAlpha {
-                    a = data[pixel + 3]
-                    if a > 0 {
-//                        fr *= 255 / Float(a)
-//                        fg *= 255 / Float(a)
-//                        fb *= 255 / Float(a)
-                    }
-                }
+
                 arr[yy * exwidth + xx] = fr
                 arr[yy * exwidth + xx + exwidth * exheight] = fg
                 arr[yy * exwidth + xx + exwidth * exheight * 2] = fb
