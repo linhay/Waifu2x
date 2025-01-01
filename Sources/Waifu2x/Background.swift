@@ -24,7 +24,7 @@ private final class Waifu2xInput: MLFeatureProvider {
     }
 }
 
-struct PipelineTask {
+struct PipelineTask: @unchecked Sendable {
     let input: (CGRect) async throws -> MLMultiArray
     let model: MLModel
     let output: (Int, MLMultiArray) async -> Void

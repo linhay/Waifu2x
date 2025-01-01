@@ -9,7 +9,7 @@ import CoreGraphics
 import ImageIO
 import UniformTypeIdentifiers
 
-public struct Waifu2xData {
+public struct Waifu2xData: Sendable {
     public let cgImage: CGImage
     public let cgSize: CGSize
 }

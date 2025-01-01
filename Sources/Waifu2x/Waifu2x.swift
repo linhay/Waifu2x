@@ -9,7 +9,7 @@
 
 import CoreML
 
-public struct Waifu2x {
+public struct Waifu2x: @unchecked Sendable {
     /// The output block size.
     /// It is dependent on the model.
     /// Do not modify it until you are sure your model has a different number.
