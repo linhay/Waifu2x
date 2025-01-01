@@ -150,7 +150,7 @@ public struct Waifu2x {
                 let y = Int(rect.origin.y)
                 do {
                     // 使用 vImage 转换数据格式
-                    return try VImageUtils.convertToMLMultiArray(
+                    return try await VImageUtils.convertToMLMultiArray(
                         expanded: expanded, x: x, y: y,
                         blockSize: self.block_size + 2 * self.shrink_size,
                         expwidth: expwidth, expheight: expheight
@@ -162,12 +162,10 @@ public struct Waifu2x {
                         NSNumber(value: self.block_size + 2 * self.shrink_size),
                         NSNumber(value: self.block_size + 2 * self.shrink_size),
                     ], dataType: .float32)
-                    var x_new: Int
-                    var y_new: Int
                     for y_exp in y ..< (y + self.block_size + 2 * self.shrink_size) {
                         for x_exp in x ..< (x + self.block_size + 2 * self.shrink_size) {
-                            x_new = x_exp - x
-                            y_new = y_exp - y
+                            let x_new = x_exp - x
+                            let y_new = y_exp - y
                             var dest = y_new * (self.block_size + 2 * self.shrink_size) + x_new
                             multi[dest] = NSNumber(value: expanded[y_exp * expwidth + x_exp])
                             dest = y_new * (self.block_size + 2 * self.shrink_size) + x_new
@@ -190,20 +188,16 @@ public struct Waifu2x {
                 let dataPointer = UnsafeMutableBufferPointer(
                     start: array.dataPointer.assumingMemoryBound(to: Double.self), count: bufferSize
                 )
-                var dest_x: Int
-                var dest_y: Int
-                var src_index: Int
-                var dest_index: Int
                 for channel in 0 ..< 3 {
                     for src_y in 0 ..< out_block_size {
                         for src_x in 0 ..< out_block_size {
-                            dest_x = origin_x + src_x
-                            dest_y = origin_y + src_y
+                            let dest_x = origin_x + src_x
+                            let dest_y = origin_y + src_y
                             if dest_x >= out_fullWidth || dest_y >= out_fullHeight {
                                 continue
                             }
-                            src_index = src_y * out_block_size + src_x + out_block_size * out_block_size * channel
-                            dest_index = (dest_y * out_width + dest_x) * channels + channel
+                            let src_index = src_y * out_block_size + src_x + out_block_size * out_block_size * channel
+                            let dest_index = (dest_y * out_width + dest_x) * channels + channel
                             imgData[dest_index] = UInt8(normalize(dataPointer[src_index]))
                         }
                     }

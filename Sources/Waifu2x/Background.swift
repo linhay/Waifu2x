@@ -25,7 +25,7 @@ private final class Waifu2xInput: MLFeatureProvider {
 }
 
 struct PipelineTask {
-    let input: (CGRect) -> MLMultiArray
+    let input: (CGRect) async -> MLMultiArray
     let model: MLModel
     let output: (Int, MLMultiArray) -> Void
 
@@ -33,7 +33,7 @@ struct PipelineTask {
         let batch = await withTaskGroup(of: Waifu2xInput.self, returning: MLArrayBatchProvider.self) { it in
             for (i, rect) in rects.enumerated() {
                 let inputOrder = i
-                it.addTask { Waifu2xInput(idx: inputOrder, input: input(rect)) }
+                it.addTask { await Waifu2xInput(idx: inputOrder, input: input(rect)) }
             }
             var inputs: [Waifu2xInput] = []
             for await input in it {
@@ -44,10 +44,12 @@ struct PipelineTask {
         }
         let outs = try! model.predictions(fromBatch: batch)
 
-        for i in 0 ..< outs.count {
-            let out = outs.features(at: i)
-            let result = out.featureValue(for: "conv7")!.multiArrayValue!
-            output(idx + i, result)
+        await withTaskGroup(of: Void.self) { it in
+            for i in 0 ..< outs.count {
+                let out = outs.features(at: i)
+                let result = out.featureValue(for: "conv7")!.multiArrayValue!
+                it.addTask { output(idx + i, result) }
+            }
         }
     }
 }

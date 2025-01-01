@@ -14,7 +14,7 @@ enum VImageUtils {
     static func convertToMLMultiArray(
         expanded: [Float], x: Int, y: Int,
         blockSize: Int, expwidth: Int, expheight: Int
-    ) throws -> MLMultiArray {
+    ) async throws -> MLMultiArray {
         let channelSize = blockSize * blockSize
 
         // 创建 MLMultiArray
@@ -22,25 +22,32 @@ enum VImageUtils {
         let array = try MLMultiArray(shape: shape, dataType: .float32)
         let arrayPtr = array.dataPointer.assumingMemoryBound(to: Float.self)
 
-        return expanded.withUnsafeBufferPointer { buffer in
+        await withTaskGroup(of: Void.self) { group in
             // 为每个通道处理数据
             for channel in 0 ..< 3 {
-                let channelOffset = channel * expwidth * expheight
+                group.addTask {
+                    let channelOffset = channel * expwidth * expheight
+                    let destBaseOffset = channel * channelSize
 
-                // 使用 vDSP 进行优化的内存复制
-                for row in 0 ..< blockSize {
-                    let srcOffset = channelOffset + (y + row) * expwidth + x
-                    let destOffset = channel * channelSize + row * blockSize
+                    // 处理每一行的数据
+                    for row in 0 ..< blockSize {
+                        let srcOffset = channelOffset + (y + row) * expwidth + x
+                        let destOffset = destBaseOffset + row * blockSize
 
-                    // 使用 vDSP 进行优化的内存复制
-                    let src = UnsafePointer(buffer.baseAddress!.advanced(by: srcOffset))
-                    let dest = UnsafeMutablePointer(arrayPtr.advanced(by: destOffset))
-                    vDSP_mmov(src, dest, vDSP_Length(blockSize), 1, 1, 1)
+                        // 使用 vDSP 进行优化的内存复制
+                        expanded.withUnsafeBufferPointer { buffer in
+                            let src = UnsafePointer(buffer.baseAddress!.advanced(by: srcOffset))
+                            let dest = UnsafeMutablePointer(arrayPtr.advanced(by: destOffset))
+
+                            // 复制当前行的数据
+                            vDSP_mmov(src, dest, vDSP_Length(blockSize), 1, 1, 1)
+                        }
+                    }
                 }
             }
-
-            return array
         }
+
+        return array
     }
 
     /// 使用 vImage 处理 alpha 通道缩放
