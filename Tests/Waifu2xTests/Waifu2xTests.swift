@@ -26,10 +26,9 @@ extension NSImage {
     let bundle = Bundle.module
     let path = bundle.path(forResource: "white", ofType: "png")!
     let data = NSData(contentsOfFile: path)
-    let image = NSImage(data: data! as Data)!
     let waifu2x = Waifu2x(model: Waifu2xModel.anime_noise3_scale2x)
     let startTime = CFAbsoluteTimeGetCurrent()
-    _ = try! await waifu2x.run(image)
+    _ = try! await waifu2x.run(data! as Data)
     let endTime = CFAbsoluteTimeGetCurrent()
     print("waifu2x handled \(endTime - startTime) sec")
 }
@@ -42,9 +41,8 @@ extension NSImage {
                 let bundle = Bundle.module
                 let path = bundle.path(forResource: "white", ofType: "png")!
                 let data = NSData(contentsOfFile: path)
-                let image = NSImage(data: data! as Data)!
                 let waifu2x = Waifu2x(model: model)
-                _ = try! await waifu2x.run(image)
+                _ = try! await waifu2x.run(data! as Data)
             }
         }
     }
@@ -57,9 +55,8 @@ extension NSImage {
         let bundle = Bundle.module
         let path = bundle.path(forResource: "white", ofType: "png")!
         let data = NSData(contentsOfFile: path)
-        let image = NSImage(data: data! as Data)!
         let waifu2x = Waifu2x(model: Waifu2xModel.photo_noise2_scale2x)
-        _ = try! await waifu2x.run(image)
+        _ = try! await waifu2x.run(data! as Data)
         group.leave()
     }
     group.wait()

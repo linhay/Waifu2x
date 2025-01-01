@@ -7,7 +7,6 @@
 //  Copyright © 2018年 xieyi. All rights reserved.
 //
 
-import AppKit
 import CoreML
 
 public struct Waifu2x {
@@ -43,13 +42,11 @@ public struct Waifu2x {
         self.batchSize = batchSize
     }
 
-    public func run(_ image: NSImage) async throws -> NSImage {
-        let width = Int(image.representations[0].pixelsWide)
-        let height = Int(image.representations[0].pixelsHigh)
+    public func run(_ cgimg: CGImage) async throws -> Waifu2xData {
+        let width = cgimg.width
+        let height = cgimg.height
         var fullWidth = width
         var fullHeight = height
-        guard let cgimg = image.representations[0].cgImage(forProposedRect: nil, context: nil, hints: nil)
-        else { throw Waifu2xError.getCGImageFailed }
         var fullCG = cgimg
 
         // If image is too small, expand it
@@ -82,7 +79,7 @@ public struct Waifu2x {
         let channels = 4
         var alpha: [UInt8]!
         if hasalpha {
-            alpha = image.alpha()
+            alpha = cgimg.alpha()
             hasalpha = alpha?.contains(where: { $0 < 255 }) ?? false
         }
         #if DEBUG_MODE
@@ -184,7 +181,6 @@ public struct Waifu2x {
             bytesPerRow: out_width * channels, space: colorSpace, bitmapInfo: CGBitmapInfo(rawValue: bitmapInfo),
             provider: dataProvider, decode: nil, shouldInterpolate: true, intent: CGColorRenderingIntent.defaultIntent
         )
-        let outImage = NSImage(cgImage: cgImage!, size: CGSize(width: out_width, height: out_height))
-        return outImage
+        return Waifu2xData(cgImage: cgImage!, cgSize: CGSize(width: out_width, height: out_height))
     }
 }

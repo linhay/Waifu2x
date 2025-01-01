@@ -17,7 +17,7 @@ public enum Waifu2xError: LocalizedError {
 
     public var errorDescription: String? {
         switch self {
-        case .getCGImageFailed: "Failed to get CGImage from NSImage"
+        case .getCGImageFailed: "Failed to get CGImage from Data"
         case .expandImageFailed: "Failed to expand image when image is too small"
         case .metalNotAvailable: "Metal not available on your device"
         case .vImageConversionFailed: "Failed to convert image format using vImage"

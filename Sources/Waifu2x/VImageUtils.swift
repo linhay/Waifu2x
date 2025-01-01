@@ -6,7 +6,6 @@
 //
 
 import Accelerate
-import CoreGraphics
 import CoreML
 
 extension [Float] {
