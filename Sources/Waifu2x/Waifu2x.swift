@@ -148,7 +148,7 @@ public struct Waifu2x {
 
         let expwidth = fullWidth + 2 * shrink_size
         let expheight = fullHeight + 2 * shrink_size
-        let expanded = fullCG.expand(shrink_size: shrink_size, clip_eta8: clip_eta8)
+        let expanded = await fullCG.expand(shrink_size: shrink_size, clip_eta8: clip_eta8)
         let pipeline = PipelineTask(
             input: { rect in
                 let x = Int(rect.origin.x)
