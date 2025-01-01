@@ -35,7 +35,10 @@ extension NSImage {
         let width = Int(representations[0].pixelsWide)
         let height = Int(representations[0].pixelsHigh)
         let bits = representations[0].cgImage(forProposedRect: nil, context: nil, hints: nil)?.bitsPerComponent ?? 8
-        NSLog("Bits per component: %d", bits)
+        #if DEBUG_MODE
+            print("Bits per component: \(bits)")
+        #endif
+
         var data = [UInt8](repeating: 0, count: width * height)
         if bits == 8 {
             alphaNonTyped(&data)

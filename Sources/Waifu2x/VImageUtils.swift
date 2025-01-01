@@ -9,12 +9,9 @@ import Accelerate
 import CoreGraphics
 import CoreML
 
-enum VImageUtils {
+extension [Float] {
     /// 使用 vImage 将 RGB 格式转换为 MLMultiArray 所需的平面格式
-    static func convertToMLMultiArray(
-        expanded: [Float], x: Int, y: Int,
-        blockSize: Int, expwidth: Int, expheight: Int
-    ) async throws -> MLMultiArray {
+    func convertToML(x: Int, y: Int, blockSize: Int, expwidth: Int, expheight: Int) async throws -> MLMultiArray {
         let channelSize = blockSize * blockSize
 
         // 创建 MLMultiArray
@@ -37,7 +34,7 @@ enum VImageUtils {
                         let destOffset = destBaseOffset + row * blockSize
 
                         // 使用 vDSP 进行优化的内存复制
-                        expanded.withUnsafeBufferPointer { buffer in
+                        withUnsafeBufferPointer { buffer in
                             let src = UnsafePointer(buffer.baseAddress!.advanced(by: srcOffset))
                             let dest = UnsafeMutablePointer(arrayPtr.advanced(by: destOffset))
 
@@ -51,37 +48,75 @@ enum VImageUtils {
 
         return array
     }
+}
 
+extension [UInt8] {
     /// 使用 vImage 处理 alpha 通道缩放
-    static func scaleAlphaChannel(alpha: [UInt8], width: Int, height: Int, scale: Int) throws -> [UInt8] {
+    func scaleAlpha(width: Int, height: Int, scale: Int) -> [UInt8] {
         let newWidth = width * scale
         let newHeight = height * scale
 
-        return try alpha.withUnsafeBufferPointer { buffer in
-            // 创建源缓冲区
-            var sourceBuffer = vImage_Buffer(
-                data: UnsafeMutableRawPointer(mutating: buffer.baseAddress!),
-                height: vImagePixelCount(height),
-                width: vImagePixelCount(width),
-                rowBytes: width
-            )
+        do {
+            return try withUnsafeBufferPointer { buffer in
+                // 创建源缓冲区
+                var sourceBuffer = vImage_Buffer(
+                    data: UnsafeMutableRawPointer(mutating: buffer.baseAddress!),
+                    height: vImagePixelCount(height),
+                    width: vImagePixelCount(width),
+                    rowBytes: width
+                )
 
-            // 创建目标缓冲区
-            let destBuffer = UnsafeMutablePointer<UInt8>.allocate(capacity: newWidth * newHeight)
-            defer { destBuffer.deallocate() }
+                // 创建目标缓冲区
+                let destBuffer = UnsafeMutablePointer<UInt8>.allocate(capacity: newWidth * newHeight)
+                defer { destBuffer.deallocate() }
 
-            var destBufferInfo = vImage_Buffer(
-                data: destBuffer,
-                height: vImagePixelCount(newHeight),
-                width: vImagePixelCount(newWidth),
-                rowBytes: newWidth
-            )
+                var destBufferInfo = vImage_Buffer(
+                    data: destBuffer,
+                    height: vImagePixelCount(newHeight),
+                    width: vImagePixelCount(newWidth),
+                    rowBytes: newWidth
+                )
 
-            // 执行缩放
-            let error = vImageScale_Planar8(&sourceBuffer, &destBufferInfo, nil, vImage_Flags(kvImageHighQualityResampling))
-            guard error == kvImageNoError else { throw Waifu2xError.vImageScalingFailed }
+                // 执行缩放
+                let error = vImageScale_Planar8(&sourceBuffer, &destBufferInfo, nil, vImage_Flags(kvImageHighQualityResampling))
+                guard error == kvImageNoError else { throw Waifu2xError.vImageScalingFailed }
 
-            return Array(UnsafeBufferPointer(start: destBuffer, count: newWidth * newHeight))
+                return Array(UnsafeBufferPointer(start: destBuffer, count: newWidth * newHeight))
+            }
+        } catch {
+            // 如果 vImage 处理失败,回退到原来的 CPU 缩放方法
+            #if DEBUG_MODE
+                print("use vImage scale fail, back to bicubic")
+            #endif
+            let bicubic = Bicubic(image: self, channels: 1, width: width, height: height)
+            return bicubic.resize(scale: Float(scale))
         }
+    }
+}
+
+extension UnsafeMutablePointer<Double> {
+    /// 使用 vImage 处理模型输出
+    func covertToUInt8(bufferSize: Int) -> UnsafeMutablePointer<UInt8> {
+        // 创建临时缓冲区用于存储归一化后的数据
+        let tempBuffer = UnsafeMutablePointer<Float>.allocate(capacity: bufferSize)
+        defer { tempBuffer.deallocate() }
+
+        // 使用 vDSP 进行批量归一化操作
+        vDSP_vdpsp(self, 1, tempBuffer, 1, vDSP_Length(bufferSize))
+        var scale: Float = 255.0
+        vDSP_vsmul(tempBuffer, 1, &scale, tempBuffer, 1, vDSP_Length(bufferSize))
+
+        // 使用 vDSP 进行范围裁剪
+        var minValue: Float = 0.0
+        var maxValue: Float = 255.0
+        vDSP_vclip(tempBuffer, 1, &minValue, &maxValue, tempBuffer, 1, vDSP_Length(bufferSize))
+
+        // 创建一个临时的 UInt8 缓冲区
+        let uint8Buffer = UnsafeMutablePointer<UInt8>.allocate(capacity: bufferSize)
+
+        // 批量转换为 UInt8
+        vDSP_vfix8(tempBuffer, 1, uint8Buffer, 1, vDSP_Length(bufferSize))
+
+        return uint8Buffer
     }
 }

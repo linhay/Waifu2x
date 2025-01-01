@@ -27,8 +27,11 @@ extension NSImage {
     let path = bundle.path(forResource: "white", ofType: "png")!
     let data = NSData(contentsOfFile: path)
     let image = NSImage(data: data! as Data)!
-    let waifu2x = Waifu2x(model: Waifu2xModel.photo_noise2_scale2x)
+    let waifu2x = Waifu2x(model: Waifu2xModel.anime_noise3_scale2x)
+    let startTime = CFAbsoluteTimeGetCurrent()
     _ = try! await waifu2x.run(image)
+    let endTime = CFAbsoluteTimeGetCurrent()
+    print("waifu2x handled \(endTime - startTime) sec")
 }
 
 @Test func testAllModels() async throws {

@@ -24,20 +24,10 @@ private final class Waifu2xInput: MLFeatureProvider {
     }
 }
 
-private actor Waifu2xHandler {
-    static let shared = Waifu2xHandler()
-
-    func predictions(model: MLModel, batch: MLArrayBatchProvider) throws -> any MLBatchProvider {
-        try Result { try model.predictions(fromBatch: batch) }
-            .mapError { Waifu2xError.coreMLError($0.localizedDescription) }
-            .get()
-    }
-}
-
 struct PipelineTask {
     let input: (CGRect) async throws -> MLMultiArray
     let model: MLModel
-    let output: (Int, MLMultiArray) -> Void
+    let output: (Int, MLMultiArray) async -> Void
 
     func run(idx: Int, rects: ArraySlice<CGRect>) async throws {
         let batch = try await withThrowingTaskGroup(of: Waifu2xInput.self, returning: MLArrayBatchProvider.self) { it in
@@ -53,13 +43,15 @@ struct PipelineTask {
             return MLArrayBatchProvider(array: inputs)
         }
 
-        let outs = try await Waifu2xHandler.shared.predictions(model: model, batch: batch)
+        let outs = try Result { try model.predictions(fromBatch: batch) }
+            .mapError { Waifu2xError.coreMLError($0.localizedDescription) }
+            .get()
 
         await withTaskGroup(of: Void.self) { it in
             for i in 0 ..< outs.count {
                 let out = outs.features(at: i)
                 let result = out.featureValue(for: "conv7")!.multiArrayValue!
-                it.addTask { output(idx + i, result) }
+                it.addTask { await output(idx + i, result) }
             }
         }
     }

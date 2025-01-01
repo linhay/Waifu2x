@@ -7,7 +7,6 @@
 //  Copyright © 2018年 xieyi. All rights reserved.
 //
 
-import Accelerate
 import AppKit
 import CoreML
 
@@ -80,18 +79,15 @@ public struct Waifu2x {
         }
 
         var hasalpha = cgimg.alphaInfo != CGImageAlphaInfo.none
-        debugPrint("With Alpha: \(hasalpha)")
         let channels = 4
         var alpha: [UInt8]!
         if hasalpha {
             alpha = image.alpha()
-            // Check if it really has alpha
-            let ralpha = alpha.contains(where: { $0 < 255 })
-            if !ralpha {
-                hasalpha = false
-            }
+            hasalpha = alpha?.contains(where: { $0 < 255 }) ?? false
         }
-        debugPrint("Really With Alpha: \(hasalpha)")
+        #if DEBUG_MODE
+            print("really with alpha: \(hasalpha)")
+        #endif
 
         let out_width = width * out_scale
         let out_height = height * out_scale
@@ -108,19 +104,7 @@ public struct Waifu2x {
         if hasalpha {
             alpha_task = {
                 if self.out_scale > 1 {
-                    do {
-                        alpha = try VImageUtils.scaleAlphaChannel(
-                            alpha: alpha,
-                            width: width,
-                            height: height,
-                            scale: self.out_scale
-                        )
-                    } catch {
-                        // 如果 vImage 处理失败,回退到原来的 CPU 缩放方法
-                        let bicubic = Bicubic(image: alpha, channels: 1, width: width, height: height)
-                        alpha = bicubic.resize(scale: Float(self.out_scale))
-                        debugPrint("use vImage scale fail, back to bicubic")
-                    }
+                    alpha = alpha.scaleAlpha(width: width, height: height, scale: self.out_scale)
                 }
                 for y in 0 ..< out_height {
                     for x in 0 ..< out_width {
@@ -134,8 +118,8 @@ public struct Waifu2x {
         let expheight = fullHeight + 2 * shrink_size
         let expanded = await fullCG.expand(shrink_size: shrink_size, clip_eta8: clip_eta8)
         let pipeline = PipelineTask(
-            input: { rect in try await VImageUtils.convertToMLMultiArray(
-                expanded: expanded, x: Int(rect.origin.x), y: Int(rect.origin.y),
+            input: { rect in try await expanded.convertToML(
+                x: Int(rect.origin.x), y: Int(rect.origin.y),
                 blockSize: self.block_size + 2 * self.shrink_size,
                 expwidth: expwidth, expheight: expheight
             ) },
@@ -144,41 +128,23 @@ public struct Waifu2x {
                 let rect = rects[index]
                 let origin_x = Int(rect.origin.x) * self.out_scale
                 let origin_y = Int(rect.origin.y) * self.out_scale
+
+                // 计算有效的复制区域
+                let validHeight = min(out_block_size, out_fullHeight - origin_y)
+                let validWidth = min(out_block_size, out_fullWidth - origin_x)
+                guard validWidth > 0, validHeight > 0 else { return }
+
                 // 获取源数据指针
                 let dataPointer = array.dataPointer.assumingMemoryBound(to: Double.self)
-
-                // 创建临时缓冲区用于存储归一化后的数据
-                let tempBuffer = UnsafeMutablePointer<Float>.allocate(capacity: bufferSize)
-                defer { tempBuffer.deallocate() }
-
-                // 使用 vDSP 进行批量归一化操作
-                vDSP_vdpsp(dataPointer, 1, tempBuffer, 1, vDSP_Length(bufferSize))
-                var scale: Float = 255.0
-                vDSP_vsmul(tempBuffer, 1, &scale, tempBuffer, 1, vDSP_Length(bufferSize))
-
-                // 使用 vDSP 进行范围裁剪
-                var minValue: Float = 0.0
-                var maxValue: Float = 255.0
-                vDSP_vclip(tempBuffer, 1, &minValue, &maxValue, tempBuffer, 1, vDSP_Length(bufferSize))
-
-                // 创建一个临时的 UInt8 缓冲区
-                let uint8Buffer = UnsafeMutablePointer<UInt8>.allocate(capacity: bufferSize)
+                let uint8Buffer = dataPointer.covertToUInt8(bufferSize: bufferSize)
                 defer { uint8Buffer.deallocate() }
-
-                // 批量转换为 UInt8
-                vDSP_vfix8(tempBuffer, 1, uint8Buffer, 1, vDSP_Length(bufferSize))
 
                 // 为每个通道批量处理数据
                 for channel in 0 ..< 3 {
                     let channelOffset = channel * out_block_size * out_block_size
                     let channelData = uint8Buffer.advanced(by: channelOffset)
 
-                    // 计算有效的复制区域
-                    let validHeight = min(out_block_size, out_fullHeight - origin_y)
-                    let validWidth = min(out_block_size, out_fullWidth - origin_x)
-                    if validWidth <= 0 || validHeight <= 0 { continue }
-
-                    // 使用 vDSP_mmov 进行整行复制
+                    // 进行整行复制
                     for row in 0 ..< validHeight {
                         let srcRow = channelData.advanced(by: row * out_block_size)
                         let destRow = imgData.advanced(by: ((origin_y + row) * out_width + origin_x) * channels + channel)
