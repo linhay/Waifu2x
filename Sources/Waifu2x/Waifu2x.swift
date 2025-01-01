@@ -3,7 +3,7 @@
 //  waifu2x-mac
 //
 //  Created by xieyi on 2018/1/24.
-//  Modify by vuhe.
+//  Modify by vuhe on 2024/12/25.
 //  Copyright © 2018年 xieyi. All rights reserved.
 //
 
@@ -48,9 +48,8 @@ public struct Waifu2x {
         let height = Int(image.representations[0].pixelsHigh)
         var fullWidth = width
         var fullHeight = height
-        guard let cgimg = image.representations[0].cgImage(forProposedRect: nil, context: nil, hints: nil) else {
-            throw Waifu2xError.getCGImageFailed
-        }
+        guard let cgimg = image.representations[0].cgImage(forProposedRect: nil, context: nil, hints: nil)
+        else { throw Waifu2xError.getCGImageFailed }
         var fullCG = cgimg
 
         // If image is too small, expand it
@@ -67,15 +66,15 @@ public struct Waifu2x {
             } else if bitmapInfo & CGBitmapInfo.alphaInfoMask.rawValue == CGImageAlphaInfo.last.rawValue {
                 bitmapInfo = bitmapInfo & ~CGBitmapInfo.alphaInfoMask.rawValue | CGImageAlphaInfo.premultipliedLast.rawValue
             }
-            let context = CGContext(data: nil, width: fullWidth, height: fullHeight, bitsPerComponent: cgimg.bitsPerComponent, bytesPerRow: cgimg.bytesPerRow / width * fullWidth, space: cgimg.colorSpace ?? CGColorSpaceCreateDeviceRGB(), bitmapInfo: bitmapInfo)
-            var y = fullHeight - height
-            if y < 0 {
-                y = 0
-            }
+            let context = CGContext(
+                data: nil, width: fullWidth, height: fullHeight,
+                bitsPerComponent: cgimg.bitsPerComponent, bytesPerRow: cgimg.bytesPerRow / width * fullWidth,
+                space: cgimg.colorSpace ?? CGColorSpaceCreateDeviceRGB(), bitmapInfo: bitmapInfo
+            )
+            let y = max(fullHeight - height, 0)
             context?.draw(cgimg, in: CGRect(x: 0, y: y, width: width, height: height))
-            guard let contextCG = context?.makeImage() else {
-                throw Waifu2xError.expandImageFailed
-            }
+            guard let contextCG = context?.makeImage()
+            else { throw Waifu2xError.expandImageFailed }
             fullCG = contextCG
         }
 
@@ -85,19 +84,14 @@ public struct Waifu2x {
         var alpha: [UInt8]!
         if hasalpha {
             alpha = image.alpha()
-            var ralpha = false
             // Check if it really has alpha
-            for a in alpha {
-                if a < 255 {
-                    ralpha = true
-                    break
-                }
-            }
+            let ralpha = alpha.contains(where: { $0 < 255 })
             if !ralpha {
                 hasalpha = false
             }
         }
         debugPrint("Really With Alpha: \(hasalpha)")
+
         let out_width = width * out_scale
         let out_height = height * out_scale
         let out_fullWidth = fullWidth * out_scale
@@ -119,6 +113,7 @@ public struct Waifu2x {
         let bufferSize = out_block_size * out_block_size * 3
         let imgData = UnsafeMutablePointer<UInt8>.allocate(capacity: out_width * out_height * channels)
         defer { imgData.deallocate() }
+
         // Alpha channel support
         var alpha_task: (() async -> Void)?
         if hasalpha {
@@ -175,9 +170,11 @@ public struct Waifu2x {
                             y_new = y_exp - y
                             var dest = y_new * (self.block_size + 2 * self.shrink_size) + x_new
                             multi[dest] = NSNumber(value: expanded[y_exp * expwidth + x_exp])
-                            dest = y_new * (self.block_size + 2 * self.shrink_size) + x_new + (self.block_size + 2 * self.shrink_size) * (self.block_size + 2 * self.shrink_size)
+                            dest = y_new * (self.block_size + 2 * self.shrink_size) + x_new
+                                + (self.block_size + 2 * self.shrink_size) * (self.block_size + 2 * self.shrink_size)
                             multi[dest] = NSNumber(value: expanded[y_exp * expwidth + x_exp + expwidth * expheight])
-                            dest = y_new * (self.block_size + 2 * self.shrink_size) + x_new + (self.block_size + 2 * self.shrink_size) * (self.block_size + 2 * self.shrink_size) * 2
+                            dest = y_new * (self.block_size + 2 * self.shrink_size) + x_new
+                                + (self.block_size + 2 * self.shrink_size) * (self.block_size + 2 * self.shrink_size) * 2
                             multi[dest] = NSNumber(value: expanded[y_exp * expwidth + x_exp + expwidth * expheight * 2])
                         }
                     }
@@ -220,7 +217,7 @@ public struct Waifu2x {
             while idx < rects.count {
                 let startIdx = idx
                 let subRects = rects[idx ..< min(idx + batchSize, rects.count)]
-                it.addTask { pipeline.run(idx: startIdx, rects: subRects) }
+                it.addTask { await pipeline.run(idx: startIdx, rects: subRects) }
                 idx += batchSize
             }
         }
@@ -234,7 +231,11 @@ public struct Waifu2x {
         } else {
             bitmapInfo |= CGImageAlphaInfo.noneSkipLast.rawValue
         }
-        let cgImage = CGImage(width: out_width, height: out_height, bitsPerComponent: 8, bitsPerPixel: 8 * channels, bytesPerRow: out_width * channels, space: colorSpace, bitmapInfo: CGBitmapInfo(rawValue: bitmapInfo), provider: dataProvider, decode: nil, shouldInterpolate: true, intent: CGColorRenderingIntent.defaultIntent)
+        let cgImage = CGImage(
+            width: out_width, height: out_height, bitsPerComponent: 8, bitsPerPixel: 8 * channels,
+            bytesPerRow: out_width * channels, space: colorSpace, bitmapInfo: CGBitmapInfo(rawValue: bitmapInfo),
+            provider: dataProvider, decode: nil, shouldInterpolate: true, intent: CGColorRenderingIntent.defaultIntent
+        )
         let outImage = NSImage(cgImage: cgImage!, size: CGSize(width: out_width, height: out_height))
         return outImage
     }

@@ -3,6 +3,7 @@
 //  waifu2x-ios
 //
 //  Created by xieyi on 2017/11/5.
+//  Modify by vuhe on 2024/12/25.
 //  Copyright © 2017年 xieyi. All rights reserved.
 //
 

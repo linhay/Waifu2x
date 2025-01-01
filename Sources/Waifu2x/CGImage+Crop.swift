@@ -3,13 +3,14 @@
 //  waifu2x-mac
 //
 //  Created by xieyi on 2020/3/7.
+//  Modify by vuhe on 2024/12/25.
 //  Copyright © 2020 xieyi. All rights reserved.
 //
 
 import CoreML
 
 extension CGImage {
-    func getCropRects(_ block_size: Int) -> ([CGRect]) {
+    func getCropRects(_ block_size: Int) -> [CGRect] {
         let num_w = width / block_size
         let num_h = height / block_size
         let ex_w = width % block_size
