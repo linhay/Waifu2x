@@ -3,6 +3,15 @@ import Testing
 @testable import Waifu2x
 
 extension NSImage {
+    var jpegData: Data? {
+        guard let tiffRepresentation = tiffRepresentation, let bitmapImage = NSBitmapImageRep(data: tiffRepresentation) else { return nil }
+        return bitmapImage.representation(using: .jpeg, properties: [.compressionFactor: 0.9])
+    }
+
+    func jpegWrite(to url: URL, options: Data.WritingOptions = .atomic) throws {
+        try jpegData?.write(to: url, options: options)
+    }
+
     var pngData: Data? {
         guard let tiffRepresentation = tiffRepresentation, let bitmapImage = NSBitmapImageRep(data: tiffRepresentation) else { return nil }
         return bitmapImage.representation(using: .png, properties: [:])
