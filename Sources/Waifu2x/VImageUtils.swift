@@ -19,7 +19,9 @@ enum VImageUtils {
 
         // 创建 MLMultiArray
         let shape: [NSNumber] = [3, NSNumber(value: blockSize), NSNumber(value: blockSize)]
-        let array = try MLMultiArray(shape: shape, dataType: .float32)
+        let array = try Result { try MLMultiArray(shape: shape, dataType: .float32) }
+            .mapError { Waifu2xError.coreMLError($0.localizedDescription) }
+            .get()
         let arrayPtr = array.dataPointer.assumingMemoryBound(to: Float.self)
 
         await withTaskGroup(of: Void.self) { group in

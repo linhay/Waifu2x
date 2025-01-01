@@ -7,6 +7,7 @@
 //  Copyright © 2018年 xieyi. All rights reserved.
 //
 
+import Accelerate
 import AppKit
 import CoreML
 
@@ -98,18 +99,6 @@ public struct Waifu2x {
         let out_fullHeight = fullHeight * out_scale
         let out_block_size = block_size * out_scale
         let rects = fullCG.getCropRects(block_size)
-        // Prepare for output pipeline
-        // Merge arrays into one array
-        let normalize = { (input: Double) -> Double in
-            let output = input * 255
-            if output > 255 {
-                return 255
-            }
-            if output < 0 {
-                return 0
-            }
-            return output
-        }
         let bufferSize = out_block_size * out_block_size * 3
         let imgData = UnsafeMutablePointer<UInt8>.allocate(capacity: out_width * out_height * channels)
         defer { imgData.deallocate() }
@@ -145,75 +134,74 @@ public struct Waifu2x {
         let expheight = fullHeight + 2 * shrink_size
         let expanded = await fullCG.expand(shrink_size: shrink_size, clip_eta8: clip_eta8)
         let pipeline = PipelineTask(
-            input: { rect in
-                let x = Int(rect.origin.x)
-                let y = Int(rect.origin.y)
-                do {
-                    // 使用 vImage 转换数据格式
-                    return try await VImageUtils.convertToMLMultiArray(
-                        expanded: expanded, x: x, y: y,
-                        blockSize: self.block_size + 2 * self.shrink_size,
-                        expwidth: expwidth, expheight: expheight
-                    )
-                } catch {
-                    // 回退到原始方法
-                    let multi = try! MLMultiArray(shape: [
-                        3,
-                        NSNumber(value: self.block_size + 2 * self.shrink_size),
-                        NSNumber(value: self.block_size + 2 * self.shrink_size),
-                    ], dataType: .float32)
-                    for y_exp in y ..< (y + self.block_size + 2 * self.shrink_size) {
-                        for x_exp in x ..< (x + self.block_size + 2 * self.shrink_size) {
-                            let x_new = x_exp - x
-                            let y_new = y_exp - y
-                            var dest = y_new * (self.block_size + 2 * self.shrink_size) + x_new
-                            multi[dest] = NSNumber(value: expanded[y_exp * expwidth + x_exp])
-                            dest = y_new * (self.block_size + 2 * self.shrink_size) + x_new
-                                + (self.block_size + 2 * self.shrink_size) * (self.block_size + 2 * self.shrink_size)
-                            multi[dest] = NSNumber(value: expanded[y_exp * expwidth + x_exp + expwidth * expheight])
-                            dest = y_new * (self.block_size + 2 * self.shrink_size) + x_new
-                                + (self.block_size + 2 * self.shrink_size) * (self.block_size + 2 * self.shrink_size) * 2
-                            multi[dest] = NSNumber(value: expanded[y_exp * expwidth + x_exp + expwidth * expheight * 2])
-                        }
-                    }
-                    debugPrint("use vImage cover image fail, back to default")
-                    return multi
-                }
-            },
+            input: { rect in try await VImageUtils.convertToMLMultiArray(
+                expanded: expanded, x: Int(rect.origin.x), y: Int(rect.origin.y),
+                blockSize: self.block_size + 2 * self.shrink_size,
+                expwidth: expwidth, expheight: expheight
+            ) },
             model: mlmodel,
             output: { index, array in
                 let rect = rects[index]
                 let origin_x = Int(rect.origin.x) * self.out_scale
                 let origin_y = Int(rect.origin.y) * self.out_scale
-                let dataPointer = UnsafeMutableBufferPointer(
-                    start: array.dataPointer.assumingMemoryBound(to: Double.self), count: bufferSize
-                )
+                // 获取源数据指针
+                let dataPointer = array.dataPointer.assumingMemoryBound(to: Double.self)
+
+                // 创建临时缓冲区用于存储归一化后的数据
+                let tempBuffer = UnsafeMutablePointer<Float>.allocate(capacity: bufferSize)
+                defer { tempBuffer.deallocate() }
+
+                // 使用 vDSP 进行批量归一化操作
+                vDSP_vdpsp(dataPointer, 1, tempBuffer, 1, vDSP_Length(bufferSize))
+                var scale: Float = 255.0
+                vDSP_vsmul(tempBuffer, 1, &scale, tempBuffer, 1, vDSP_Length(bufferSize))
+
+                // 使用 vDSP 进行范围裁剪
+                var minValue: Float = 0.0
+                var maxValue: Float = 255.0
+                vDSP_vclip(tempBuffer, 1, &minValue, &maxValue, tempBuffer, 1, vDSP_Length(bufferSize))
+
+                // 创建一个临时的 UInt8 缓冲区
+                let uint8Buffer = UnsafeMutablePointer<UInt8>.allocate(capacity: bufferSize)
+                defer { uint8Buffer.deallocate() }
+
+                // 批量转换为 UInt8
+                vDSP_vfix8(tempBuffer, 1, uint8Buffer, 1, vDSP_Length(bufferSize))
+
+                // 为每个通道批量处理数据
                 for channel in 0 ..< 3 {
-                    for src_y in 0 ..< out_block_size {
-                        for src_x in 0 ..< out_block_size {
-                            let dest_x = origin_x + src_x
-                            let dest_y = origin_y + src_y
-                            if dest_x >= out_fullWidth || dest_y >= out_fullHeight {
-                                continue
-                            }
-                            let src_index = src_y * out_block_size + src_x + out_block_size * out_block_size * channel
-                            let dest_index = (dest_y * out_width + dest_x) * channels + channel
-                            imgData[dest_index] = UInt8(normalize(dataPointer[src_index]))
+                    let channelOffset = channel * out_block_size * out_block_size
+                    let channelData = uint8Buffer.advanced(by: channelOffset)
+
+                    // 计算有效的复制区域
+                    let validHeight = min(out_block_size, out_fullHeight - origin_y)
+                    let validWidth = min(out_block_size, out_fullWidth - origin_x)
+                    if validWidth <= 0 || validHeight <= 0 { continue }
+
+                    // 使用 vDSP_mmov 进行整行复制
+                    for row in 0 ..< validHeight {
+                        let srcRow = channelData.advanced(by: row * out_block_size)
+                        let destRow = imgData.advanced(by: ((origin_y + row) * out_width + origin_x) * channels + channel)
+
+                        // 使用 stride 来处理通道间隔
+                        for i in 0 ..< validWidth {
+                            destRow.advanced(by: i * channels).pointee = srcRow.advanced(by: i).pointee
                         }
                     }
                 }
             }
         )
 
-        await withTaskGroup(of: Void.self) { it in
+        try await withThrowingTaskGroup(of: Void.self) { it in
             it.addTask { await alpha_task?() }
             var idx = 0
             while idx < rects.count {
                 let startIdx = idx
                 let subRects = rects[idx ..< min(idx + batchSize, rects.count)]
-                it.addTask { await pipeline.run(idx: startIdx, rects: subRects) }
+                it.addTask { try await pipeline.run(idx: startIdx, rects: subRects) }
                 idx += batchSize
             }
+            try await it.waitForAll()
         }
 
         let cfbuffer = CFDataCreate(nil, imgData, out_width * out_height * channels)!

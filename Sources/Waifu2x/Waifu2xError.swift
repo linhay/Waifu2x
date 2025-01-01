@@ -13,6 +13,7 @@ public enum Waifu2xError: LocalizedError {
     case metalNotAvailable
     case vImageConversionFailed
     case vImageScalingFailed
+    case coreMLError(String)
 
     public var errorDescription: String? {
         switch self {
@@ -21,6 +22,7 @@ public enum Waifu2xError: LocalizedError {
         case .metalNotAvailable: "Metal not available on your device"
         case .vImageConversionFailed: "Failed to convert image format using vImage"
         case .vImageScalingFailed: "Failed to scale alpha channel using vImage"
+        case let .coreMLError(desc): "Core ML error: \(desc)"
         }
     }
 }
