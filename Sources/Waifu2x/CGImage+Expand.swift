@@ -17,7 +17,7 @@ extension CGImage {
     ///
     /// - Returns: Float array of rgb values
     func expand(shrink_size: Int, clip_eta8: Float) async -> [Float] {
-        let rect = NSRect(origin: .zero, size: CGSize(width: width, height: height))
+        let rect = CGRect(origin: .zero, size: CGSize(width: width, height: height))
 
         // Redraw image in 32-bit RGBA
         let data = UnsafeMutablePointer<UInt8>.allocate(capacity: width * height * 4)

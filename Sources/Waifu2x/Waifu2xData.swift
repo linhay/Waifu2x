@@ -16,10 +16,10 @@ public struct Waifu2xData: Sendable {
 
 public extension Waifu2xData {
     func toJpeg(compressionQuality: CGFloat = 0.9) -> Data? {
-        let data = NSMutableData()
-        guard let destination = CGImageDestinationCreateWithData(
-            data, UTType.jpeg.identifier as CFString, 1, nil
-        ) else { return nil }
+        let type = UTType.jpeg.identifier as CFString
+        guard let data = CFDataCreateMutable(nil, 0),
+              let destination = CGImageDestinationCreateWithData(data, type, 1, nil)
+        else { return nil }
 
         let options: [CFString: Any] = [
             kCGImageDestinationLossyCompressionQuality: compressionQuality,
@@ -31,10 +31,10 @@ public extension Waifu2xData {
     }
 
     func toPng() -> Data? {
-        let data = NSMutableData()
-        guard let destination = CGImageDestinationCreateWithData(
-            data, UTType.png.identifier as CFString, 1, nil
-        ) else { return nil }
+        let type = UTType.png.identifier as CFString
+        guard let data = CFDataCreateMutable(nil, 0),
+              let destination = CGImageDestinationCreateWithData(data, type, 1, nil)
+        else { return nil }
 
         CGImageDestinationAddImage(destination, cgImage, nil)
         guard CGImageDestinationFinalize(destination) else { return nil }
@@ -50,9 +50,7 @@ public extension Waifu2xData {
             NSImage(cgImage: cgImage, size: cgSize)
         }
     }
-#endif
-
-#if os(iOS)
+#else
     import UIKit
 
     public extension Waifu2xData {
