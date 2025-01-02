@@ -1,3 +1,11 @@
+//
+//  Waifu2xTests.swift
+//  Waifu2x
+//
+//  Created by vuhe on 2024/9/25.
+//  Copyright © 2024 vuhe. All rights reserved.
+//
+
 import Cocoa
 import Testing
 
@@ -8,12 +16,12 @@ import Testing
 #endif
 
 @Test func testModel() async throws {
-    let url = Bundle.module.url(forResource: "white", withExtension: "png")!
-    let waifu2x = Waifu2x(model: .anime_noise3_scale2x)
-    let startTime = CFAbsoluteTimeGetCurrent()
-    _ = try! await waifu2x.run(Data(contentsOf: url))
-    let endTime = CFAbsoluteTimeGetCurrent()
-    print("waifu2x handled \(endTime - startTime) sec")
+    let monitor = PerformanceMonitor()
+    _ = try! await monitor.measure {
+        let url = Bundle.module.url(forResource: "white", withExtension: "png")!
+        let waifu2x = Waifu2x(model: .anime_noise3_scale2x)
+        return try await waifu2x.run(Data(contentsOf: url))
+    }
 }
 
 @Test func testAllModels() async throws {
