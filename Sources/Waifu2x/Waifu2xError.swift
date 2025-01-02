@@ -9,6 +9,7 @@
 import Foundation
 
 public enum Waifu2xError: LocalizedError {
+    case blockRunFailed
     case getCGImageFailed
     case expandImageFailed
     case metalNotAvailable
@@ -18,6 +19,7 @@ public enum Waifu2xError: LocalizedError {
 
     public var errorDescription: String? {
         switch self {
+        case .blockRunFailed: "Fail to run when block the thread"
         case .getCGImageFailed: "Failed to get CGImage from Data"
         case .expandImageFailed: "Failed to expand image when image is too small"
         case .metalNotAvailable: "Metal not available on your device"
