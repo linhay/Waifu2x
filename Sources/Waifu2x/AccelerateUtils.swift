@@ -15,63 +15,31 @@ extension CGImage {
         // Check if expansion is needed
         guard width < block_size || height < block_size else { return self }
 
-        // Calculate scale factor to maintain aspect ratio
-        let scaleX = Double(block_size) / Double(width)
-        let scaleY = Double(block_size) / Double(height)
-        let scale = max(scaleX, scaleY)
+        var fullWidth = width
+        var fullHeight = height
 
-        // Calculate new dimensions
-        let newWidth = Int(Double(width) * scale)
-        let newHeight = Int(Double(height) * scale)
-
-        // Prepare source buffer
-        var format = vImage_CGImageFormat(
-            bitsPerComponent: UInt32(bitsPerComponent),
-            bitsPerPixel: UInt32(bitsPerPixel),
-            colorSpace: Unmanaged.passUnretained(colorSpace ?? CGColorSpaceCreateDeviceRGB()),
-            bitmapInfo: bitmapInfo,
-            version: 0,
-            decode: nil,
-            renderingIntent: .defaultIntent
+        if width < block_size {
+            fullWidth = block_size
+        }
+        if height < block_size {
+            fullHeight = block_size
+        }
+        var bitmapInfo = bitmapInfo.rawValue
+        if bitmapInfo & CGBitmapInfo.alphaInfoMask.rawValue == CGImageAlphaInfo.first.rawValue {
+            bitmapInfo = bitmapInfo & ~CGBitmapInfo.alphaInfoMask.rawValue | CGImageAlphaInfo.premultipliedFirst.rawValue
+        } else if bitmapInfo & CGBitmapInfo.alphaInfoMask.rawValue == CGImageAlphaInfo.last.rawValue {
+            bitmapInfo = bitmapInfo & ~CGBitmapInfo.alphaInfoMask.rawValue | CGImageAlphaInfo.premultipliedLast.rawValue
+        }
+        let context = CGContext(
+            data: nil, width: fullWidth, height: fullHeight,
+            bitsPerComponent: bitsPerComponent, bytesPerRow: bytesPerRow / width * fullWidth,
+            space: colorSpace ?? CGColorSpaceCreateDeviceRGB(), bitmapInfo: bitmapInfo
         )
-
-        var sourceBuffer = vImage_Buffer()
-        defer { sourceBuffer.data?.deallocate() }
-        var destBuffer = vImage_Buffer()
-        defer { destBuffer.data?.deallocate() }
-
-        // Create source buffer from CGImage
-        var error = vImageBuffer_InitWithCGImage(
-            &sourceBuffer, &format,
-            nil, self, vImage_Flags(kvImageNoFlags)
-        )
-        guard error == kvImageNoError else { throw Waifu2xError.expandImageFailed }
-
-        // Create destination buffer
-        error = vImageBuffer_Init(
-            &destBuffer,
-            vImagePixelCount(newHeight),
-            vImagePixelCount(newWidth),
-            UInt32(bitsPerPixel),
-            vImage_Flags(kvImageNoFlags)
-        )
-        guard error == kvImageNoError else { throw Waifu2xError.expandImageFailed }
-
-        // Perform high-quality scaling
-        error = vImageScale_ARGB8888(
-            &sourceBuffer, &destBuffer,
-            nil, vImage_Flags(kvImageHighQualityResampling)
-        )
-        guard error == kvImageNoError else { throw Waifu2xError.expandImageFailed }
-
-        // Convert back to CGImage
-        let resultCGImage = vImageCreateCGImageFromBuffer(
-            &destBuffer, &format, { _, _ in }, nil,
-            vImage_Flags(kvImageNoFlags), &error
-        ).takeRetainedValue()
-        guard error == kvImageNoError else { throw Waifu2xError.expandImageFailed }
-
-        return resultCGImage
+        let y = max(fullHeight - height, 0)
+        context?.draw(self, in: CGRect(x: 0, y: y, width: width, height: height))
+        guard let contextCG = context?.makeImage()
+        else { throw Waifu2xError.expandImageFailed }
+        return contextCG
     }
 
     func alpha() -> [UInt8]? {

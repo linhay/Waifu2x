@@ -18,12 +18,8 @@ import Testing
 @Test func testModel() async throws {
     let monitor = PerformanceMonitor()
     let url = Bundle.module.url(forResource: "white", withExtension: "png")!
-    let waifu2x = Waifu2x(model: .anime_noise3_scale2x)
-    // Warm up the model to show average conditions
-    _ = try await waifu2x.run(Data(contentsOf: url))
-
     _ = try! await monitor.measure {
-        let url = Bundle.module.url(forResource: "white", withExtension: "png")!
+        let waifu2x = Waifu2x(model: .anime_noise3_scale2x)
         return try await waifu2x.run(Data(contentsOf: url))
     }
 }

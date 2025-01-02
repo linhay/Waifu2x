@@ -45,18 +45,15 @@ public struct Waifu2x: Sendable {
     }
 
     public func run(_ image: CGImage) async throws -> Waifu2xData {
-        // If image is too small, that will expand it
-        let cgimg = try image.preExpand(block_size: block_size)
-
-        let width = cgimg.width
-        let height = cgimg.height
+        let width = image.width
+        let height = image.height
         let channels = 4 // Higher versions only allow the creation of 4 channels
         let outputTask = OutputTask(
             width: width, height: height, block_size: block_size, out_scale: out_scale, channels: channels
         )
 
         // Alpha channel support
-        let alpha = cgimg.alpha()
+        let alpha = image.alpha()
         #if DEBUG_MODE
             print("really with alpha: \(alpha != nil)")
         #endif
@@ -68,12 +65,14 @@ public struct Waifu2x: Sendable {
             await outputTask.mergeAlpha(alpha: alphaChannel)
         } } else { nil }
 
+        // If image is too small, that will expand it
+        let preExpandImage = try image.preExpand(block_size: block_size)
         let pipeline = PipelineTask(
             input: InputTask(
-                expanded: cgimg.expand(shrink_size: shrink_size, clip_eta8: clip_eta8),
+                expanded: preExpandImage.expand(shrink_size: shrink_size, clip_eta8: clip_eta8),
                 blockSize: block_size + 2 * shrink_size,
-                expwidth: width + 2 * shrink_size,
-                expheight: height + 2 * shrink_size
+                expwidth: preExpandImage.width + 2 * shrink_size,
+                expheight: preExpandImage.height + 2 * shrink_size
             ),
             model: ModelTask(model),
             output: outputTask
@@ -82,12 +81,10 @@ public struct Waifu2x: Sendable {
         try await withThrowingTaskGroup(of: Void.self) { it in
             it.addTask { try await alpha_task?() }
 
-            let rects = cgimg.getCropRects(block_size)
-            var idx = 0
-            while idx < rects.count {
-                let subRects = rects[idx ..< min(idx + batchSize, rects.count)]
-                it.addTask { try await pipeline.run(rects: Array(subRects)) }
-                idx += batchSize
+            let rects = preExpandImage.getCropRects(block_size)
+            for i in stride(from: 0, to: rects.count, by: batchSize) {
+                let end = min(i + batchSize, rects.count)
+                it.addTask { try await pipeline.run(rects: Array(rects[i ..< end])) }
             }
             try await it.waitForAll()
         }
