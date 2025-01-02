@@ -1,10 +1,12 @@
 //
 //  CGImage+Crop.swift
-//  waifu2x-mac
+//  Waifu2x
 //
 //  Created by xieyi on 2020/3/7.
-//  Modify by vuhe on 2024/12/25.
 //  Copyright © 2020 xieyi. All rights reserved.
+//
+//  Modify by vuhe on 2024/12/25.
+//  Copyright © 2024 vuhe. All rights reserved.
 //
 
 import CoreML

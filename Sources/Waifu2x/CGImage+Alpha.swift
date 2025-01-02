@@ -3,6 +3,7 @@
 //  Waifu2x
 //
 //  Created by vuhe on 2024/12/31.
+//  Copyright © 2024 vuhe. All rights reserved.
 //
 
 import CoreGraphics

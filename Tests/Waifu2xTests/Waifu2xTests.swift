@@ -2,26 +2,6 @@ import Cocoa
 import Testing
 @testable import Waifu2x
 
-extension NSImage {
-    var jpegData: Data? {
-        guard let tiffRepresentation = tiffRepresentation, let bitmapImage = NSBitmapImageRep(data: tiffRepresentation) else { return nil }
-        return bitmapImage.representation(using: .jpeg, properties: [.compressionFactor: 0.9])
-    }
-
-    func jpegWrite(to url: URL, options: Data.WritingOptions = .atomic) throws {
-        try jpegData?.write(to: url, options: options)
-    }
-
-    var pngData: Data? {
-        guard let tiffRepresentation = tiffRepresentation, let bitmapImage = NSBitmapImageRep(data: tiffRepresentation) else { return nil }
-        return bitmapImage.representation(using: .png, properties: [:])
-    }
-
-    func pngWrite(to url: URL, options: Data.WritingOptions = .atomic) throws {
-        try pngData?.write(to: url, options: options)
-    }
-}
-
 @Test func testModel() async throws {
     let bundle = Bundle.module
     let path = bundle.path(forResource: "white", ofType: "png")!

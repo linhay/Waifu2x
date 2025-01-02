@@ -1,10 +1,12 @@
 //
 //  Waifu2x.swift
-//  waifu2x-mac
+//  Waifu2x
 //
 //  Created by xieyi on 2018/1/24.
+//  Copyright © 2018 xieyi. All rights reserved.
+//
 //  Modify by vuhe on 2024/12/25.
-//  Copyright © 2018年 xieyi. All rights reserved.
+//  Copyright © 2024 vuhe. All rights reserved.
 //
 
 import CoreML
@@ -97,11 +99,11 @@ public struct Waifu2x: @unchecked Sendable {
         defer { imgData.deallocate() }
 
         // Alpha channel support
-        var alpha_task: (() async -> Void)?
+        var alpha_task: (() async throws -> Void)?
         if hasalpha {
             alpha_task = {
                 if self.out_scale > 1 {
-                    alpha = alpha.scaleAlpha(width: width, height: height, scale: self.out_scale)
+                    alpha = try alpha.scaleAlpha(width: width, height: height, scale: self.out_scale)
                 }
                 for y in 0 ..< out_height {
                     for x in 0 ..< out_width {
@@ -156,7 +158,7 @@ public struct Waifu2x: @unchecked Sendable {
         )
 
         try await withThrowingTaskGroup(of: Void.self) { it in
-            it.addTask { await alpha_task?() }
+            it.addTask { try await alpha_task?() }
             var idx = 0
             while idx < rects.count {
                 let startIdx = idx

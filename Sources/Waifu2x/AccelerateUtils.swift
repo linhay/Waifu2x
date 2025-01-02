@@ -1,8 +1,9 @@
 //
-//  VImageUtils.swift
+//  AccelerateUtils.swift
 //  Waifu2x
 //
 //  Created by vuhe on 2024/12/31.
+//  Copyright © 2024 vuhe. All rights reserved.
 //
 
 import Accelerate
@@ -51,44 +52,35 @@ extension [Float] {
 
 extension [UInt8] {
     /// 使用 vImage 处理 alpha 通道缩放
-    func scaleAlpha(width: Int, height: Int, scale: Int) -> [UInt8] {
+    func scaleAlpha(width: Int, height: Int, scale: Int) throws -> [UInt8] {
         let newWidth = width * scale
         let newHeight = height * scale
 
-        do {
-            return try withUnsafeBufferPointer { buffer in
-                // 创建源缓冲区
-                var sourceBuffer = vImage_Buffer(
-                    data: UnsafeMutableRawPointer(mutating: buffer.baseAddress!),
-                    height: vImagePixelCount(height),
-                    width: vImagePixelCount(width),
-                    rowBytes: width
-                )
+        return try withUnsafeBufferPointer { buffer in
+            // 创建源缓冲区
+            var sourceBuffer = vImage_Buffer(
+                data: UnsafeMutableRawPointer(mutating: buffer.baseAddress!),
+                height: vImagePixelCount(height),
+                width: vImagePixelCount(width),
+                rowBytes: width
+            )
 
-                // 创建目标缓冲区
-                let destBuffer = UnsafeMutablePointer<UInt8>.allocate(capacity: newWidth * newHeight)
-                defer { destBuffer.deallocate() }
+            // 创建目标缓冲区
+            let destBuffer = UnsafeMutablePointer<UInt8>.allocate(capacity: newWidth * newHeight)
+            defer { destBuffer.deallocate() }
 
-                var destBufferInfo = vImage_Buffer(
-                    data: destBuffer,
-                    height: vImagePixelCount(newHeight),
-                    width: vImagePixelCount(newWidth),
-                    rowBytes: newWidth
-                )
+            var destBufferInfo = vImage_Buffer(
+                data: destBuffer,
+                height: vImagePixelCount(newHeight),
+                width: vImagePixelCount(newWidth),
+                rowBytes: newWidth
+            )
 
-                // 执行缩放
-                let error = vImageScale_Planar8(&sourceBuffer, &destBufferInfo, nil, vImage_Flags(kvImageHighQualityResampling))
-                guard error == kvImageNoError else { throw Waifu2xError.vImageScalingFailed }
+            // 执行缩放
+            let error = vImageScale_Planar8(&sourceBuffer, &destBufferInfo, nil, vImage_Flags(kvImageHighQualityResampling))
+            guard error == kvImageNoError else { throw Waifu2xError.vImageScalingFailed }
 
-                return Array(UnsafeBufferPointer(start: destBuffer, count: newWidth * newHeight))
-            }
-        } catch {
-            // 如果 vImage 处理失败,回退到原来的 CPU 缩放方法
-            #if DEBUG_MODE
-                print("use vImage scale fail, back to bicubic")
-            #endif
-            let bicubic = Bicubic(image: self, channels: 1, width: width, height: height)
-            return bicubic.resize(scale: Float(scale))
+            return Array(UnsafeBufferPointer(start: destBuffer, count: newWidth * newHeight))
         }
     }
 }

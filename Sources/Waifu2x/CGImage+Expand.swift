@@ -1,10 +1,12 @@
 //
 //  CGImage+Expand.swift
-//  waifu2x-ios
+//  Waifu2x
 //
 //  Created by xieyi on 2017/9/14.
+//  Copyright © 2017 xieyi. All rights reserved.
+//
 //  Modify by vuhe on 2024/12/25.
-//  Copyright © 2017年 xieyi. All rights reserved.
+//  Copyright © 2024 vuhe. All rights reserved.
 //
 
 import CoreML
