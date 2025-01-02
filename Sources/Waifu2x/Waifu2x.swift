@@ -47,6 +47,7 @@ public struct Waifu2x: @unchecked Sendable {
     public func run(_ cgimg: CGImage) async throws -> Waifu2xData {
         let width = cgimg.width
         let height = cgimg.height
+        let channels = 4 // Higher versions only allow the creation of 4 channels
         var fullWidth = width
         var fullHeight = height
         var fullCG = cgimg
@@ -78,7 +79,6 @@ public struct Waifu2x: @unchecked Sendable {
         }
 
         var hasalpha = cgimg.alphaInfo != CGImageAlphaInfo.none
-        let channels = 4
         var alpha: [UInt8]!
         if hasalpha {
             alpha = cgimg.alpha()
@@ -90,11 +90,6 @@ public struct Waifu2x: @unchecked Sendable {
 
         let out_width = width * out_scale
         let out_height = height * out_scale
-        let out_fullWidth = fullWidth * out_scale
-        let out_fullHeight = fullHeight * out_scale
-        let out_block_size = block_size * out_scale
-        let rects = fullCG.getCropRects(block_size)
-        let bufferSize = out_block_size * out_block_size * 3
         let imgData = UnsafeMutablePointer<UInt8>.allocate(capacity: out_width * out_height * channels)
         defer { imgData.deallocate() }
 
@@ -113,6 +108,11 @@ public struct Waifu2x: @unchecked Sendable {
             }
         }
 
+        let out_fullWidth = fullWidth * out_scale
+        let out_fullHeight = fullHeight * out_scale
+        let out_block_size = block_size * out_scale
+        let rects = fullCG.getCropRects(block_size)
+        let bufferSize = out_block_size * out_block_size * 3
         let expwidth = fullWidth + 2 * shrink_size
         let expheight = fullHeight + 2 * shrink_size
         let expanded = await fullCG.expand(shrink_size: shrink_size, clip_eta8: clip_eta8)
@@ -128,27 +128,27 @@ public struct Waifu2x: @unchecked Sendable {
                 let origin_x = Int(rect.origin.x) * self.out_scale
                 let origin_y = Int(rect.origin.y) * self.out_scale
 
-                // 计算有效的复制区域
+                // Calculate the effective replication area
                 let validHeight = min(out_block_size, out_fullHeight - origin_y)
                 let validWidth = min(out_block_size, out_fullWidth - origin_x)
                 guard validWidth > 0, validHeight > 0 else { return }
 
-                // 获取源数据指针
+                // Normalize the model output data to UInt8
                 let dataPointer = array.dataPointer.assumingMemoryBound(to: Double.self)
                 let uint8Buffer = dataPointer.covertToUInt8(bufferSize: bufferSize)
                 defer { uint8Buffer.deallocate() }
 
-                // 为每个通道批量处理数据
+                // Process each RGB channel
                 for channel in 0 ..< 3 {
                     let channelOffset = channel * out_block_size * out_block_size
                     let channelData = uint8Buffer.advanced(by: channelOffset)
 
-                    // 进行整行复制
+                    // Copy each row of the block
                     for row in 0 ..< validHeight {
                         let srcRow = channelData.advanced(by: row * out_block_size)
                         let destRow = imgData.advanced(by: ((origin_y + row) * out_width + origin_x) * channels + channel)
 
-                        // 使用 stride 来处理通道间隔
+                        // Copy pixels with channel stride
                         for i in 0 ..< validWidth {
                             destRow.advanced(by: i * channels).pointee = srcRow.advanced(by: i).pointee
                         }

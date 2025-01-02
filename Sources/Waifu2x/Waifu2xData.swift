@@ -6,8 +6,7 @@
 //  Copyright © 2025 vuhe. All rights reserved.
 //
 
-import CoreGraphics
-import ImageIO
+import CoreImage
 import UniformTypeIdentifiers
 
 public struct Waifu2xData: Sendable {

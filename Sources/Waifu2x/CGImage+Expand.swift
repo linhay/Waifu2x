@@ -9,7 +9,7 @@
 //  Copyright © 2024 vuhe. All rights reserved.
 //
 
-import CoreML
+import CoreImage
 
 extension CGImage {
     /// Expand the original image by shrink_size and store rgb in float array.
@@ -37,7 +37,7 @@ extension CGImage {
         let exheight = height + 2 * shrink_size
         let expandedSize = exwidth * exheight
 
-        // 创建结果数组
+        // Create the result array
         let resultPtr = UnsafeMutablePointer<Float>.allocate(capacity: 3 * expandedSize)
         resultPtr.initialize(repeating: 0, count: 3 * expandedSize)
         defer { resultPtr.deallocate() }
@@ -203,7 +203,7 @@ extension CGImage {
             }
         }
 
-        // 将结果转换回数组
+        // Convert the result back to an array
         return Array(UnsafeBufferPointer(start: resultPtr, count: 3 * expandedSize))
     }
 }

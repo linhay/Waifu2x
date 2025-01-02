@@ -10,7 +10,7 @@ import CoreGraphics
 
 extension CGImage {
     // For images with more than 8 bits per component, extracting alpha only produces incomplete image
-    func alphaTyped<T>(bits: Int, zero: T) -> UnsafeMutablePointer<T> {
+    private func alphaTyped<T>(bits: Int, zero: T) -> UnsafeMutablePointer<T> {
         let width = width
         let height = height
         let data = UnsafeMutablePointer<T>.allocate(capacity: width * height * 4)
@@ -25,7 +25,7 @@ extension CGImage {
         return data
     }
 
-    func alphaNonTyped(_ datap: UnsafeMutableRawPointer) {
+    private func alphaNonTyped(_ datap: UnsafeMutableRawPointer) {
         let width = width
         let height = height
         let alphaOnly = CGContext(

@@ -9,7 +9,7 @@
 //  Copyright © 2024 vuhe. All rights reserved.
 //
 
-import CoreML
+import CoreGraphics
 
 extension CGImage {
     func getCropRects(_ block_size: Int) -> [CGRect] {
