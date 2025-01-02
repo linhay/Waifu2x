@@ -51,31 +51,22 @@ public struct Waifu2x: Sendable {
         let width = cgimg.width
         let height = cgimg.height
         let channels = 4 // Higher versions only allow the creation of 4 channels
-
-        var hasalpha = cgimg.alphaInfo != CGImageAlphaInfo.none
-        var alpha: [UInt8]!
-        if hasalpha {
-            alpha = cgimg.alpha()
-            hasalpha = alpha?.contains(where: { $0 < 255 }) ?? false
-        }
-        #if DEBUG_MODE
-            print("really with alpha: \(hasalpha)")
-        #endif
-
         let outputTask = OutputTask(
             width: width, height: height, block_size: block_size, out_scale: out_scale, channels: channels
         )
 
         // Alpha channel support
-        var alpha_task: (() async throws -> Void)?
-        if hasalpha {
-            alpha_task = {
-                if out_scale > 1 {
-                    alpha = try alpha.scaleAlpha(width: width, height: height, scale: out_scale)
-                }
-                await outputTask.mergeAlpha(alpha: alpha)
+        let alpha = cgimg.alpha()
+        #if DEBUG_MODE
+            print("really with alpha: \(alpha != nil)")
+        #endif
+        let alpha_task: (() async throws -> Void)? = if let alphaArray = alpha { {
+            var alphaChannel = alphaArray
+            if out_scale > 1 {
+                alphaChannel = try alphaArray.scaleAlpha(width: width, height: height, scale: out_scale)
             }
-        }
+            await outputTask.mergeAlpha(alpha: alphaChannel)
+        } } else { nil }
 
         let pipeline = PipelineTask(
             input: InputTask(
@@ -107,7 +98,7 @@ public struct Waifu2x: Sendable {
         let dataProvider = CGDataProvider(data: cfbuffer)!
         let colorSpace = CGColorSpaceCreateDeviceRGB()
         var bitmapInfo = CGBitmapInfo.byteOrder32Big.rawValue
-        if hasalpha {
+        if alpha != nil {
             bitmapInfo |= CGImageAlphaInfo.last.rawValue
         } else {
             bitmapInfo |= CGImageAlphaInfo.noneSkipLast.rawValue

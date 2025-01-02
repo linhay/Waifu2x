@@ -37,7 +37,7 @@ extension CGImage {
         alphaOnly?.draw(self, in: CGRect(x: 0, y: 0, width: width, height: height))
     }
 
-    func alpha() -> [UInt8] {
+    func alphaUInt8Array() -> [UInt8] {
         let width = width
         let height = height
         let bits = bitsPerComponent

@@ -73,6 +73,19 @@ extension CGImage {
 
         return resultCGImage
     }
+
+    func alpha() -> [UInt8]? {
+        guard alphaInfo != CGImageAlphaInfo.none else { return nil }
+        var array = alphaUInt8Array()
+        var floatAlpha = [Float](repeating: 0, count: array.count)
+        // Check if it really has alpha
+        var minValue: Float = 1.0
+        var minIndex: vDSP_Length = 0
+        vDSP_vfltu8(&array, 1, &floatAlpha, 1, vDSP_Length(array.count))
+        vDSP_minvi(&floatAlpha, 1, &minValue, &minIndex, vDSP_Length(array.count))
+        guard minValue < 255.0 else { return nil }
+        return array
+    }
 }
 
 extension [Float] {
