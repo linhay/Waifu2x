@@ -166,10 +166,6 @@ extension MLMultiArray {
         var maxValue: Float = 255.0
         vDSP_vclip(tempBuffer, 1, &minValue, &maxValue, tempBuffer, 1, vDSP_Length(bufferSize))
 
-        // Create a buffer for UInt8 output
-        let uint8Buffer = UnsafeMutablePointer<UInt8>.allocate(capacity: bufferSize)
-        defer { uint8Buffer.deallocate() }
-
         // Convert Float to UInt8 in batch
         var result = [UInt8](repeating: 0, count: bufferSize)
         result.withUnsafeMutableBufferPointer { buffer in
