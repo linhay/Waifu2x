@@ -11,7 +11,7 @@
 
 import CoreML
 
-public struct Waifu2x: @unchecked Sendable {
+public struct Waifu2x: Sendable {
     /// The output block size.
     /// It is dependent on the model.
     /// Do not modify it until you are sure your model has a different number.
@@ -27,7 +27,7 @@ public struct Waifu2x: @unchecked Sendable {
     /// https://github.com/nagadomi/waifu2x/commit/797b45ae23665a1c5e3c481c018e48e6f0d0e383
     private let clip_eta8 = Float(0.00196)
 
-    private let mlmodel: MLModel
+    private let model: Waifu2xModel
 
     private let batchSize: Int
 
@@ -40,43 +40,17 @@ public struct Waifu2x: @unchecked Sendable {
             block_size = 142
             out_scale = 2
         }
-        mlmodel = model.getMLModel()
+        self.model = model
         self.batchSize = batchSize
     }
 
-    public func run(_ cgimg: CGImage) async throws -> Waifu2xData {
+    public func run(_ image: CGImage) async throws -> Waifu2xData {
+        // If image is too small, that will expand it
+        let cgimg = try image.preExpand(block_size: block_size)
+
         let width = cgimg.width
         let height = cgimg.height
         let channels = 4 // Higher versions only allow the creation of 4 channels
-        var fullWidth = width
-        var fullHeight = height
-        var fullCG = cgimg
-
-        // If image is too small, expand it
-        if width < block_size || height < block_size {
-            if width < block_size {
-                fullWidth = block_size
-            }
-            if height < block_size {
-                fullHeight = block_size
-            }
-            var bitmapInfo = cgimg.bitmapInfo.rawValue
-            if bitmapInfo & CGBitmapInfo.alphaInfoMask.rawValue == CGImageAlphaInfo.first.rawValue {
-                bitmapInfo = bitmapInfo & ~CGBitmapInfo.alphaInfoMask.rawValue | CGImageAlphaInfo.premultipliedFirst.rawValue
-            } else if bitmapInfo & CGBitmapInfo.alphaInfoMask.rawValue == CGImageAlphaInfo.last.rawValue {
-                bitmapInfo = bitmapInfo & ~CGBitmapInfo.alphaInfoMask.rawValue | CGImageAlphaInfo.premultipliedLast.rawValue
-            }
-            let context = CGContext(
-                data: nil, width: fullWidth, height: fullHeight,
-                bitsPerComponent: cgimg.bitsPerComponent, bytesPerRow: cgimg.bytesPerRow / width * fullWidth,
-                space: cgimg.colorSpace ?? CGColorSpaceCreateDeviceRGB(), bitmapInfo: bitmapInfo
-            )
-            let y = max(fullHeight - height, 0)
-            context?.draw(cgimg, in: CGRect(x: 0, y: y, width: width, height: height))
-            guard let contextCG = context?.makeImage()
-            else { throw Waifu2xError.expandImageFailed }
-            fullCG = contextCG
-        }
 
         var hasalpha = cgimg.alphaInfo != CGImageAlphaInfo.none
         var alpha: [UInt8]!
@@ -88,10 +62,9 @@ public struct Waifu2x: @unchecked Sendable {
             print("really with alpha: \(hasalpha)")
         #endif
 
-        let out_width = width * out_scale
-        let out_height = height * out_scale
-        let imgData = UnsafeMutablePointer<UInt8>.allocate(capacity: out_width * out_height * channels)
-        defer { imgData.deallocate() }
+        let outputTask = OutputTask(
+            width: width, height: height, block_size: block_size, out_scale: out_scale, channels: channels
+        )
 
         // Alpha channel support
         var alpha_task: (() async throws -> Void)?
@@ -100,76 +73,37 @@ public struct Waifu2x: @unchecked Sendable {
                 if out_scale > 1 {
                     alpha = try alpha.scaleAlpha(width: width, height: height, scale: out_scale)
                 }
-                for y in 0 ..< out_height {
-                    for x in 0 ..< out_width {
-                        imgData[(y * out_width + x) * channels + 3] = alpha[y * out_width + x]
-                    }
-                }
+                await outputTask.mergeAlpha(alpha: alpha)
             }
         }
 
-        let out_fullWidth = fullWidth * out_scale
-        let out_fullHeight = fullHeight * out_scale
-        let out_block_size = block_size * out_scale
-        let rects = fullCG.getCropRects(block_size)
-        let bufferSize = out_block_size * out_block_size * 3
-        let expwidth = fullWidth + 2 * shrink_size
-        let expheight = fullHeight + 2 * shrink_size
-        let expanded = await fullCG.expand(shrink_size: shrink_size, clip_eta8: clip_eta8)
         let pipeline = PipelineTask(
-            input: { rect in try await expanded.convertToML(
-                x: Int(rect.origin.x), y: Int(rect.origin.y),
+            input: InputTask(
+                expanded: cgimg.expand(shrink_size: shrink_size, clip_eta8: clip_eta8),
                 blockSize: block_size + 2 * shrink_size,
-                expwidth: expwidth, expheight: expheight
-            ) },
-            model: mlmodel,
-            output: { index, array in
-                let rect = rects[index]
-                let origin_x = Int(rect.origin.x) * out_scale
-                let origin_y = Int(rect.origin.y) * out_scale
-
-                // Calculate the effective replication area
-                let validHeight = min(out_block_size, out_fullHeight - origin_y)
-                let validWidth = min(out_block_size, out_fullWidth - origin_x)
-                guard validWidth > 0, validHeight > 0 else { return }
-
-                // Normalize the model output data to UInt8
-                let dataPointer = array.dataPointer.assumingMemoryBound(to: Double.self)
-                let uint8Buffer = dataPointer.covertToUInt8(bufferSize: bufferSize)
-                defer { uint8Buffer.deallocate() }
-
-                // Process each RGB channel
-                for channel in 0 ..< 3 {
-                    let channelOffset = channel * out_block_size * out_block_size
-                    let channelData = uint8Buffer.advanced(by: channelOffset)
-
-                    // Copy each row of the block
-                    for row in 0 ..< validHeight {
-                        let srcRow = channelData.advanced(by: row * out_block_size)
-                        let destRow = imgData.advanced(by: ((origin_y + row) * out_width + origin_x) * channels + channel)
-
-                        // Copy pixels with channel stride
-                        for i in 0 ..< validWidth {
-                            destRow.advanced(by: i * channels).pointee = srcRow.advanced(by: i).pointee
-                        }
-                    }
-                }
-            }
+                expwidth: width + 2 * shrink_size,
+                expheight: height + 2 * shrink_size
+            ),
+            model: ModelTask(model),
+            output: outputTask
         )
 
         try await withThrowingTaskGroup(of: Void.self) { it in
             it.addTask { try await alpha_task?() }
+
+            let rects = cgimg.getCropRects(block_size)
             var idx = 0
             while idx < rects.count {
-                let startIdx = idx
                 let subRects = rects[idx ..< min(idx + batchSize, rects.count)]
-                it.addTask { try await pipeline.run(idx: startIdx, rects: subRects) }
+                it.addTask { try await pipeline.run(rects: Array(subRects)) }
                 idx += batchSize
             }
             try await it.waitForAll()
         }
 
-        let cfbuffer = CFDataCreate(nil, imgData, out_width * out_height * channels)!
+        let out_width = width * out_scale
+        let out_height = height * out_scale
+        let cfbuffer = await outputTask.freezeImage()
         let dataProvider = CGDataProvider(data: cfbuffer)!
         let colorSpace = CGColorSpaceCreateDeviceRGB()
         var bitmapInfo = CGBitmapInfo.byteOrder32Big.rawValue

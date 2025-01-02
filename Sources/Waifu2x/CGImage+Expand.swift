@@ -16,194 +16,179 @@ extension CGImage {
     /// The model will shrink the input image by 7 px.
     ///
     /// - Returns: Float array of rgb values
-    func expand(shrink_size: Int, clip_eta8: Float) async -> [Float] {
+    func expand(shrink_size: Int, clip_eta8: Float) -> [Float] {
+        let width = width
+        let height = height
         let rect = CGRect(origin: .zero, size: CGSize(width: width, height: height))
 
         // Redraw image in 32-bit RGBA
-        let data = UnsafeMutablePointer<UInt8>.allocate(capacity: width * height * 4)
-        data.initialize(repeating: 0, count: width * height * 4)
-        defer { data.deallocate() }
-        let context = CGContext(
-            data: data, width: width, height: height,
-            bitsPerComponent: 8, bytesPerRow: 4 * width,
-            space: CGColorSpaceCreateDeviceRGB(),
-            bitmapInfo: CGBitmapInfo.byteOrder32Big.rawValue | CGImageAlphaInfo.noneSkipLast.rawValue
-        )
-        context?.draw(self, in: rect)
+        var data = [UInt8](repeating: 0, count: width * height * 4)
+        data.withUnsafeMutableBytes { buffer in
+            let context = CGContext(
+                data: buffer.baseAddress, width: width, height: height,
+                bitsPerComponent: 8, bytesPerRow: 4 * width,
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGBitmapInfo.byteOrder32Big.rawValue | CGImageAlphaInfo.noneSkipLast.rawValue
+            )
+            context?.draw(self, in: rect)
+        }
 
-        let width = width
-        let height = height
         let exwidth = width + 2 * shrink_size
         let exheight = height + 2 * shrink_size
         let expandedSize = exwidth * exheight
+        var result = [Float](repeating: 0, count: 3 * expandedSize)
 
-        // Create the result array
-        let resultPtr = UnsafeMutablePointer<Float>.allocate(capacity: 3 * expandedSize)
-        resultPtr.initialize(repeating: 0, count: 3 * expandedSize)
-        defer { resultPtr.deallocate() }
+        var xx, yy, pixel: Int
+        var r, g, b: UInt8
+        var fr, fg, fb: Float
 
-        await withTaskGroup(of: Void.self) { it in
-            it.addTask {
-                // http://www.jianshu.com/p/516f01fed6e4
-                for y in 0 ..< height {
-                    for x in 0 ..< width {
-                        let xx = x + shrink_size
-                        let yy = y + shrink_size
-                        let pixel = (width * y + x) * 4
-                        let r = data[pixel]
-                        let g = data[pixel + 1]
-                        let b = data[pixel + 2]
-                        // !!! rgb values are from 0 to 1
-                        // https://github.com/chungexcy/waifu2x-new/blob/master/image_test.py
-                        let fr = Float(r) / 255 + clip_eta8
-                        let fg = Float(g) / 255 + clip_eta8
-                        let fb = Float(b) / 255 + clip_eta8
+        // http://www.jianshu.com/p/516f01fed6e4
+        for y in 0 ..< height {
+            for x in 0 ..< width {
+                xx = x + shrink_size
+                yy = y + shrink_size
+                pixel = (width * y + x) * 4
+                r = data[pixel]
+                g = data[pixel + 1]
+                b = data[pixel + 2]
+                // !!! rgb values are from 0 to 1
+                // https://github.com/chungexcy/waifu2x-new/blob/master/image_test.py
+                fr = Float(r) / 255 + clip_eta8
+                fg = Float(g) / 255 + clip_eta8
+                fb = Float(b) / 255 + clip_eta8
 
-                        resultPtr[yy * exwidth + xx] = fr
-                        resultPtr[yy * exwidth + xx + exwidth * exheight] = fg
-                        resultPtr[yy * exwidth + xx + exwidth * exheight * 2] = fb
-                    }
-                }
-            }
-            it.addTask {
-                // Top-left corner
-                let pixel = 0
-                let r = data[pixel]
-                let g = data[pixel + 1]
-                let b = data[pixel + 2]
-                let fr = Float(r) / 255
-                let fg = Float(g) / 255
-                let fb = Float(b) / 255
-                for y in 0 ..< shrink_size {
-                    for x in 0 ..< shrink_size {
-                        resultPtr[y * exwidth + x] = fr
-                        resultPtr[y * exwidth + x + exwidth * exheight] = fg
-                        resultPtr[y * exwidth + x + exwidth * exheight * 2] = fb
-                    }
-                }
-            }
-            it.addTask {
-                // Top-right corner
-                let pixel = (width - 1) * 4
-                let r = data[pixel]
-                let g = data[pixel + 1]
-                let b = data[pixel + 2]
-                let fr = Float(r) / 255
-                let fg = Float(g) / 255
-                let fb = Float(b) / 255
-                for y in 0 ..< shrink_size {
-                    for x in width + shrink_size ..< width + 2 * shrink_size {
-                        resultPtr[y * exwidth + x] = fr
-                        resultPtr[y * exwidth + x + exwidth * exheight] = fg
-                        resultPtr[y * exwidth + x + exwidth * exheight * 2] = fb
-                    }
-                }
-            }
-            it.addTask {
-                // Bottom-left corner
-                let pixel = (width * (height - 1)) * 4
-                let r = data[pixel]
-                let g = data[pixel + 1]
-                let b = data[pixel + 2]
-                let fr = Float(r) / 255
-                let fg = Float(g) / 255
-                let fb = Float(b) / 255
-                for y in height + shrink_size ..< height + 2 * shrink_size {
-                    for x in 0 ..< shrink_size {
-                        resultPtr[y * exwidth + x] = fr
-                        resultPtr[y * exwidth + x + exwidth * exheight] = fg
-                        resultPtr[y * exwidth + x + exwidth * exheight * 2] = fb
-                    }
-                }
-            }
-            it.addTask {
-                // Bottom-right corner
-                let pixel = (width * (height - 1) + (width - 1)) * 4
-                let r = data[pixel]
-                let g = data[pixel + 1]
-                let b = data[pixel + 2]
-                let fr = Float(r) / 255
-                let fg = Float(g) / 255
-                let fb = Float(b) / 255
-                for y in height + shrink_size ..< height + 2 * shrink_size {
-                    for x in width + shrink_size ..< width + 2 * shrink_size {
-                        resultPtr[y * exwidth + x] = fr
-                        resultPtr[y * exwidth + x + exwidth * exheight] = fg
-                        resultPtr[y * exwidth + x + exwidth * exheight * 2] = fb
-                    }
-                }
-            }
-            // Top & bottom bar
-            for xIdx in 0 ..< width {
-                let x = xIdx
-                it.addTask {
-                    let pixel = x * 4
-                    let r = data[pixel]
-                    let g = data[pixel + 1]
-                    let b = data[pixel + 2]
-                    let fr = Float(r) / 255
-                    let fg = Float(g) / 255
-                    let fb = Float(b) / 255
-                    let xx = x + shrink_size
-                    for y in 0 ..< shrink_size {
-                        resultPtr[y * exwidth + xx] = fr
-                        resultPtr[y * exwidth + xx + exwidth * exheight] = fg
-                        resultPtr[y * exwidth + xx + exwidth * exheight * 2] = fb
-                    }
-                }
-                it.addTask {
-                    let pixel = (width * (height - 1) + x) * 4
-                    let r = data[pixel]
-                    let g = data[pixel + 1]
-                    let b = data[pixel + 2]
-                    let fr = Float(r) / 255
-                    let fg = Float(g) / 255
-                    let fb = Float(b) / 255
-                    let xx = x + shrink_size
-                    for y in height + shrink_size ..< height + 2 * shrink_size {
-                        resultPtr[y * exwidth + xx] = fr
-                        resultPtr[y * exwidth + xx + exwidth * exheight] = fg
-                        resultPtr[y * exwidth + xx + exwidth * exheight * 2] = fb
-                    }
-                }
-            }
-            // Left & right bar
-            for yIdx in 0 ..< height {
-                let y = yIdx
-                it.addTask {
-                    let pixel = (width * y) * 4
-                    let r = data[pixel]
-                    let g = data[pixel + 1]
-                    let b = data[pixel + 2]
-                    let fr = Float(r) / 255
-                    let fg = Float(g) / 255
-                    let fb = Float(b) / 255
-                    let yy = y + shrink_size
-                    for x in 0 ..< shrink_size {
-                        resultPtr[yy * exwidth + x] = fr
-                        resultPtr[yy * exwidth + x + exwidth * exheight] = fg
-                        resultPtr[yy * exwidth + x + exwidth * exheight * 2] = fb
-                    }
-                }
-                it.addTask {
-                    let pixel = (width * y + (width - 1)) * 4
-                    let r = data[pixel]
-                    let g = data[pixel + 1]
-                    let b = data[pixel + 2]
-                    let fr = Float(r) / 255
-                    let fg = Float(g) / 255
-                    let fb = Float(b) / 255
-                    let yy = y + shrink_size
-                    for x in width + shrink_size ..< width + 2 * shrink_size {
-                        resultPtr[yy * exwidth + x] = fr
-                        resultPtr[yy * exwidth + x + exwidth * exheight] = fg
-                        resultPtr[yy * exwidth + x + exwidth * exheight * 2] = fb
-                    }
-                }
+                result[yy * exwidth + xx] = fr
+                result[yy * exwidth + xx + exwidth * exheight] = fg
+                result[yy * exwidth + xx + exwidth * exheight * 2] = fb
             }
         }
 
-        // Convert the result back to an array
-        return Array(UnsafeBufferPointer(start: resultPtr, count: 3 * expandedSize))
+        // Top-left corner
+        pixel = 0
+        r = data[pixel]
+        g = data[pixel + 1]
+        b = data[pixel + 2]
+        fr = Float(r) / 255
+        fg = Float(g) / 255
+        fb = Float(b) / 255
+        for y in 0 ..< shrink_size {
+            for x in 0 ..< shrink_size {
+                result[y * exwidth + x] = fr
+                result[y * exwidth + x + exwidth * exheight] = fg
+                result[y * exwidth + x + exwidth * exheight * 2] = fb
+            }
+        }
+
+        // Top-right corner
+        pixel = (width - 1) * 4
+        r = data[pixel]
+        g = data[pixel + 1]
+        b = data[pixel + 2]
+        fr = Float(r) / 255
+        fg = Float(g) / 255
+        fb = Float(b) / 255
+        for y in 0 ..< shrink_size {
+            for x in width + shrink_size ..< width + 2 * shrink_size {
+                result[y * exwidth + x] = fr
+                result[y * exwidth + x + exwidth * exheight] = fg
+                result[y * exwidth + x + exwidth * exheight * 2] = fb
+            }
+        }
+
+        // Bottom-left corner
+        pixel = (width * (height - 1)) * 4
+        r = data[pixel]
+        g = data[pixel + 1]
+        b = data[pixel + 2]
+        fr = Float(r) / 255
+        fg = Float(g) / 255
+        fb = Float(b) / 255
+        for y in height + shrink_size ..< height + 2 * shrink_size {
+            for x in 0 ..< shrink_size {
+                result[y * exwidth + x] = fr
+                result[y * exwidth + x + exwidth * exheight] = fg
+                result[y * exwidth + x + exwidth * exheight * 2] = fb
+            }
+        }
+
+        // Bottom-right corner
+        pixel = (width * (height - 1) + (width - 1)) * 4
+        r = data[pixel]
+        g = data[pixel + 1]
+        b = data[pixel + 2]
+        fr = Float(r) / 255
+        fg = Float(g) / 255
+        fb = Float(b) / 255
+        for y in height + shrink_size ..< height + 2 * shrink_size {
+            for x in width + shrink_size ..< width + 2 * shrink_size {
+                result[y * exwidth + x] = fr
+                result[y * exwidth + x + exwidth * exheight] = fg
+                result[y * exwidth + x + exwidth * exheight * 2] = fb
+            }
+        }
+
+        // Top & bottom bar
+        for x in 0 ..< width {
+            pixel = x * 4
+            r = data[pixel]
+            g = data[pixel + 1]
+            b = data[pixel + 2]
+            fr = Float(r) / 255
+            fg = Float(g) / 255
+            fb = Float(b) / 255
+            xx = x + shrink_size
+            for y in 0 ..< shrink_size {
+                result[y * exwidth + xx] = fr
+                result[y * exwidth + xx + exwidth * exheight] = fg
+                result[y * exwidth + xx + exwidth * exheight * 2] = fb
+            }
+
+            pixel = (width * (height - 1) + x) * 4
+            r = data[pixel]
+            g = data[pixel + 1]
+            b = data[pixel + 2]
+            fr = Float(r) / 255
+            fg = Float(g) / 255
+            fb = Float(b) / 255
+            xx = x + shrink_size
+            for y in height + shrink_size ..< height + 2 * shrink_size {
+                result[y * exwidth + xx] = fr
+                result[y * exwidth + xx + exwidth * exheight] = fg
+                result[y * exwidth + xx + exwidth * exheight * 2] = fb
+            }
+        }
+
+        // Left & right bar
+        for y in 0 ..< height {
+            pixel = (width * y) * 4
+            r = data[pixel]
+            g = data[pixel + 1]
+            b = data[pixel + 2]
+            fr = Float(r) / 255
+            fg = Float(g) / 255
+            fb = Float(b) / 255
+            yy = y + shrink_size
+            for x in 0 ..< shrink_size {
+                result[yy * exwidth + x] = fr
+                result[yy * exwidth + x + exwidth * exheight] = fg
+                result[yy * exwidth + x + exwidth * exheight * 2] = fb
+            }
+
+            pixel = (width * y + (width - 1)) * 4
+            r = data[pixel]
+            g = data[pixel + 1]
+            b = data[pixel + 2]
+            fr = Float(r) / 255
+            fg = Float(g) / 255
+            fb = Float(b) / 255
+            yy = y + shrink_size
+            for x in width + shrink_size ..< width + 2 * shrink_size {
+                result[yy * exwidth + x] = fr
+                result[yy * exwidth + x + exwidth * exheight] = fg
+                result[yy * exwidth + x + exwidth * exheight * 2] = fb
+            }
+        }
+
+        return result
     }
 }

@@ -9,9 +9,9 @@ import Testing
 
 @Test func testModel() async throws {
     let url = Bundle.module.url(forResource: "white", withExtension: "png")!
-    let waifu2x = Waifu2x(model: Waifu2xModel.anime_noise3_scale2x)
+    let waifu2x = Waifu2x(model: .anime_noise3_scale2x)
     let startTime = CFAbsoluteTimeGetCurrent()
-    let output = try! await waifu2x.run(Data(contentsOf: url))
+    _ = try! await waifu2x.run(Data(contentsOf: url))
     let endTime = CFAbsoluteTimeGetCurrent()
     print("waifu2x handled \(endTime - startTime) sec")
 }
@@ -36,7 +36,7 @@ import Testing
     group.enter()
     Task {
         let url = Bundle.module.url(forResource: "white", withExtension: "png")!
-        let waifu2x = Waifu2x(model: Waifu2xModel.photo_noise2_scale2x)
+        let waifu2x = Waifu2x(model: .photo_noise2_scale2x)
         _ = try! await waifu2x.run(Data(contentsOf: url))
         group.leave()
     }
