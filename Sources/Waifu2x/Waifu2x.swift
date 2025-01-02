@@ -97,8 +97,8 @@ public struct Waifu2x: @unchecked Sendable {
         var alpha_task: (() async throws -> Void)?
         if hasalpha {
             alpha_task = {
-                if self.out_scale > 1 {
-                    alpha = try alpha.scaleAlpha(width: width, height: height, scale: self.out_scale)
+                if out_scale > 1 {
+                    alpha = try alpha.scaleAlpha(width: width, height: height, scale: out_scale)
                 }
                 for y in 0 ..< out_height {
                     for x in 0 ..< out_width {
@@ -119,14 +119,14 @@ public struct Waifu2x: @unchecked Sendable {
         let pipeline = PipelineTask(
             input: { rect in try await expanded.convertToML(
                 x: Int(rect.origin.x), y: Int(rect.origin.y),
-                blockSize: self.block_size + 2 * self.shrink_size,
+                blockSize: block_size + 2 * shrink_size,
                 expwidth: expwidth, expheight: expheight
             ) },
             model: mlmodel,
             output: { index, array in
                 let rect = rects[index]
-                let origin_x = Int(rect.origin.x) * self.out_scale
-                let origin_y = Int(rect.origin.y) * self.out_scale
+                let origin_x = Int(rect.origin.x) * out_scale
+                let origin_y = Int(rect.origin.y) * out_scale
 
                 // Calculate the effective replication area
                 let validHeight = min(out_block_size, out_fullHeight - origin_y)

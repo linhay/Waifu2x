@@ -20,7 +20,7 @@ private final class Waifu2xInput: MLFeatureProvider {
     }
 
     func featureValue(for featureName: String) -> MLFeatureValue? {
-        return if featureName == "input" { MLFeatureValue(multiArray: input) }
+        if featureName == "input" { MLFeatureValue(multiArray: input) }
         else { nil }
     }
 }

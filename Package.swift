@@ -1,11 +1,11 @@
-// swift-tools-version: 6.0
+// swift-tools-version: 5.9
 // The swift-tools-version declares the minimum version of Swift required to build this package.
 
 import PackageDescription
 
 let package = Package(
     name: "Waifu2x",
-    platforms: [.macOS(.v14)],
+    platforms: [.macOS(.v12), .iOS(.v15), .tvOS(.v15), .watchOS(.v8), .visionOS(.v1)],
     products: [
         .library(name: "Waifu2x", targets: ["Waifu2x"]),
     ],
@@ -19,6 +19,5 @@ let package = Package(
             dependencies: ["Waifu2x"],
             resources: [.copy("white.png")]
         ),
-    ],
-    swiftLanguageModes: [.v5]
+    ]
 )
