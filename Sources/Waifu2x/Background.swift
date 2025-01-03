@@ -63,28 +63,33 @@ actor ModelTask {
 }
 
 actor OutputTask {
-    private var image: [UInt8]
     private let width, height, block_size, out_scale, channels: Int
+
+    // Separate RGBA channels for parallel processing
+    private var rChannel: [UInt8]
+    private var gChannel: [UInt8]
+    private var bChannel: [UInt8]
+    private var aChannel: [UInt8]
 
     init(width: Int, height: Int, block_size: Int, out_scale: Int, channels: Int) {
         let out_width = width * out_scale
         let out_height = height * out_scale
-        image = [UInt8](repeating: 0, count: out_width * out_height * channels)
         self.width = width
         self.height = height
         self.block_size = block_size
         self.out_scale = out_scale
         self.channels = channels
+
+        let size = out_width * out_height
+        rChannel = [UInt8](repeating: 0, count: size)
+        gChannel = [UInt8](repeating: 0, count: size)
+        bChannel = [UInt8](repeating: 0, count: size)
+        // Initialize alpha channel with 255 (fully opaque) by default
+        aChannel = [UInt8](repeating: 255, count: size)
     }
 
     func mergeAlpha(alpha: [UInt8]) {
-        let out_width = width * out_scale
-        let out_height = height * out_scale
-        for y in 0 ..< out_height {
-            for x in 0 ..< out_width {
-                image[(y * out_width + x) * channels + 3] = alpha[y * out_width + x]
-            }
-        }
+        aChannel = alpha
     }
 
     fileprivate func mergeRGB(_ rect: CGRect, _ array: MLMultiArray) {
@@ -104,24 +109,65 @@ actor OutputTask {
         let uint8Array = array.covertToUInt8(bufferSize: bufferSize)
 
         // Process each RGB channel
-        for channel in 0 ..< 3 {
-            let channelOffset = channel * out_block_size * out_block_size
-
-            // Copy each row of the block
-            for row in 0 ..< validHeight {
-                let srcRowStart = channelOffset + row * out_block_size
-                let destRowStart = ((origin_y + row) * out_width + origin_x) * channels + channel
-
-                // Copy pixels with channel stride
-                for i in 0 ..< validWidth {
-                    image[destRowStart + (i * channels)] = uint8Array[srcRowStart + i]
+        uint8Array.withUnsafeBufferPointer { buffer in
+            rChannel.withUnsafeMutableBufferPointer { channel in
+                let channelOffset = 0 * out_block_size * out_block_size
+                // Copy each row of the block
+                for row in 0 ..< validHeight {
+                    let srcRowStart = channelOffset + row * out_block_size
+                    let destRowStart = (origin_y + row) * out_width + origin_x
+                    // Continuous memory copy for better performance
+                    memcpy(
+                        channel.baseAddress!.advanced(by: destRowStart),
+                        buffer.baseAddress!.advanced(by: srcRowStart),
+                        validWidth
+                    )
+                }
+            }
+            gChannel.withUnsafeMutableBufferPointer { channel in
+                let channelOffset = 1 * out_block_size * out_block_size
+                // Copy each row of the block
+                for row in 0 ..< validHeight {
+                    let srcRowStart = channelOffset + row * out_block_size
+                    let destRowStart = (origin_y + row) * out_width + origin_x
+                    // Continuous memory copy for better performance
+                    memcpy(
+                        channel.baseAddress!.advanced(by: destRowStart),
+                        buffer.baseAddress!.advanced(by: srcRowStart),
+                        validWidth
+                    )
+                }
+            }
+            bChannel.withUnsafeMutableBufferPointer { channel in
+                let channelOffset = 2 * out_block_size * out_block_size
+                // Copy each row of the block
+                for row in 0 ..< validHeight {
+                    let srcRowStart = channelOffset + row * out_block_size
+                    let destRowStart = (origin_y + row) * out_width + origin_x
+                    // Continuous memory copy for better performance
+                    memcpy(
+                        channel.baseAddress!.advanced(by: destRowStart),
+                        buffer.baseAddress!.advanced(by: srcRowStart),
+                        validWidth
+                    )
                 }
             }
         }
     }
 
+    // Create final image data with all channels combined
     func freezeImage() -> CFData {
-        Data(image) as CFData
+        let out_width = width * out_scale
+        let out_height = height * out_scale
+
+        // Create destination buffer for interleaved format
+        var destPixels = [UInt8](repeating: 0, count: out_width * out_height * 4)
+        destPixels.copyFromRGBA(
+            r: &rChannel, g: &gChannel, b: &bChannel, a: &aChannel,
+            width: out_width, height: out_height
+        )
+
+        return CFDataCreate(nil, destPixels, destPixels.count)!
     }
 }
 

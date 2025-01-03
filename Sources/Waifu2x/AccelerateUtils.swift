@@ -126,6 +126,47 @@ extension [UInt8] {
             return Array(UnsafeBufferPointer(start: destBuffer, count: newWidth * newHeight))
         }
     }
+
+    mutating func copyFromRGBA(
+        r: inout [UInt8], g: inout [UInt8], b: inout [UInt8], a: inout [UInt8],
+        width: Int, height: Int
+    ) {
+        r.withUnsafeMutableBufferPointer { rBuffer in
+            g.withUnsafeMutableBufferPointer { gBuffer in
+                b.withUnsafeMutableBufferPointer { bBuffer in
+                    a.withUnsafeMutableBufferPointer { aBuffer in
+                        withUnsafeMutableBufferPointer { destBuffer in
+                            var rImageBuffer = vImage_Buffer(
+                                data: rBuffer.baseAddress, height: vImagePixelCount(height),
+                                width: vImagePixelCount(width), rowBytes: width
+                            )
+                            var gImageBuffer = vImage_Buffer(
+                                data: gBuffer.baseAddress, height: vImagePixelCount(height),
+                                width: vImagePixelCount(width), rowBytes: width
+                            )
+                            var bImageBuffer = vImage_Buffer(
+                                data: bBuffer.baseAddress, height: vImagePixelCount(height),
+                                width: vImagePixelCount(width), rowBytes: width
+                            )
+                            var aImageBuffer = vImage_Buffer(
+                                data: aBuffer.baseAddress, height: vImagePixelCount(height),
+                                width: vImagePixelCount(width), rowBytes: width
+                            )
+                            var destImageBuffer = vImage_Buffer(
+                                data: destBuffer.baseAddress, height: vImagePixelCount(height),
+                                width: vImagePixelCount(width), rowBytes: width * 4
+                            )
+                            // Convert from planar to interleaved format using vImage
+                            vImageConvert_Planar8toARGB8888(
+                                &rImageBuffer, &gImageBuffer, &bImageBuffer, &aImageBuffer,
+                                &destImageBuffer, vImage_Flags(kvImageNoFlags)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 extension MLMultiArray {
