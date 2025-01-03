@@ -181,6 +181,7 @@ struct PipelineTask: Sendable {
         let outs = try await model.predictions(batch: batch)
         for i in 0 ..< outs.count {
             let out = outs.features(at: i)
+            // The model ensures that this is not nil
             let result = out.featureValue(for: "conv7")!.multiArrayValue!
             await output.mergeRGB(rects[i], result)
         }

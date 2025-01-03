@@ -91,7 +91,8 @@ public struct Waifu2x: Sendable {
         let out_width = width * out_scale
         let out_height = height * out_scale
         let cfbuffer = await outputTask.freezeImage()
-        let dataProvider = CGDataProvider(data: cfbuffer)!
+        guard let dataProvider = CGDataProvider(data: cfbuffer)
+        else { throw Waifu2xError.createImageFailed("new CGDataProvider, but return nil") }
         let colorSpace = CGColorSpaceCreateDeviceRGB()
         var bitmapInfo = CGBitmapInfo.byteOrder32Big.rawValue
         if hasAlpha {
@@ -99,11 +100,11 @@ public struct Waifu2x: Sendable {
         } else {
             bitmapInfo |= CGImageAlphaInfo.noneSkipLast.rawValue
         }
-        let cgImage = CGImage(
+        guard let cgImage = CGImage(
             width: out_width, height: out_height, bitsPerComponent: 8, bitsPerPixel: 8 * channels,
             bytesPerRow: out_width * channels, space: colorSpace, bitmapInfo: CGBitmapInfo(rawValue: bitmapInfo),
             provider: dataProvider, decode: nil, shouldInterpolate: true, intent: CGColorRenderingIntent.defaultIntent
-        )
-        return Waifu2xData(cgImage: cgImage!, cgSize: CGSize(width: out_width, height: out_height))
+        ) else { throw Waifu2xError.createImageFailed("CGImage return nil") }
+        return Waifu2xData(cgImage: cgImage, cgSize: CGSize(width: out_width, height: out_height))
     }
 }

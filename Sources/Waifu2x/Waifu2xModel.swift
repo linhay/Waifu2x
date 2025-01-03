@@ -34,6 +34,7 @@ public enum Waifu2xModel: String, CaseIterable, Sendable {
     func getMLModel() -> MLModel {
         let bundle = Bundle.module
         let assetPath = bundle.url(forResource: rawValue, withExtension: "mlmodelc")
+        // Loading embedded models should not result in errors
         return try! MLModel(contentsOf: assetPath!)
     }
 }

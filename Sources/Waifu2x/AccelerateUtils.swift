@@ -102,28 +102,28 @@ extension [UInt8] {
         return try withUnsafeBufferPointer { buffer in
             // Create source buffer
             var sourceBuffer = vImage_Buffer(
-                data: UnsafeMutableRawPointer(mutating: buffer.baseAddress!),
+                data: UnsafeMutableRawPointer(mutating: buffer.baseAddress),
                 height: vImagePixelCount(height),
                 width: vImagePixelCount(width),
                 rowBytes: width
             )
 
             // Create destination buffer
-            let destBuffer = UnsafeMutablePointer<UInt8>.allocate(capacity: newWidth * newHeight)
-            defer { destBuffer.deallocate() }
+            var dest = [UInt8](repeating: 0, count: newWidth * newHeight)
+            try dest.withUnsafeMutableBufferPointer { destBuffer in
+                var destBufferInfo = vImage_Buffer(
+                    data: destBuffer.baseAddress,
+                    height: vImagePixelCount(newHeight),
+                    width: vImagePixelCount(newWidth),
+                    rowBytes: newWidth
+                )
 
-            var destBufferInfo = vImage_Buffer(
-                data: destBuffer,
-                height: vImagePixelCount(newHeight),
-                width: vImagePixelCount(newWidth),
-                rowBytes: newWidth
-            )
+                // Perform scaling
+                let error = vImageScale_Planar8(&sourceBuffer, &destBufferInfo, nil, vImage_Flags(kvImageHighQualityResampling))
+                guard error == kvImageNoError else { throw Waifu2xError.vImageScalingFailed }
+            }
 
-            // Perform scaling
-            let error = vImageScale_Planar8(&sourceBuffer, &destBufferInfo, nil, vImage_Flags(kvImageHighQualityResampling))
-            guard error == kvImageNoError else { throw Waifu2xError.vImageScalingFailed }
-
-            return Array(UnsafeBufferPointer(start: destBuffer, count: newWidth * newHeight))
+            return dest
         }
     }
 
@@ -175,25 +175,26 @@ extension MLMultiArray {
         let dataPointer = dataPointer.assumingMemoryBound(to: Double.self)
 
         // Create a temporary buffer for normalized data
-        let tempBuffer = UnsafeMutablePointer<Float>.allocate(capacity: bufferSize)
-        defer { tempBuffer.deallocate() }
+        var temp = [Float](repeating: 0, count: bufferSize)
+        return temp.withUnsafeMutableBufferPointer { tempBuffer in
+            let tempAddress = tempBuffer.baseAddress!
+            // Use vDSP for batch conversion from Double to Float and normalize
+            vDSP_vdpsp(dataPointer, 1, tempAddress, 1, vDSP_Length(bufferSize))
+            var scale: Float = 255.0
+            vDSP_vsmul(tempAddress, 1, &scale, tempAddress, 1, vDSP_Length(bufferSize))
 
-        // Use vDSP for batch conversion from Double to Float and normalize
-        vDSP_vdpsp(dataPointer, 1, tempBuffer, 1, vDSP_Length(bufferSize))
-        var scale: Float = 255.0
-        vDSP_vsmul(tempBuffer, 1, &scale, tempBuffer, 1, vDSP_Length(bufferSize))
+            // Use vDSP to clip values to valid range
+            var minValue: Float = 0.0
+            var maxValue: Float = 255.0
+            vDSP_vclip(tempAddress, 1, &minValue, &maxValue, tempAddress, 1, vDSP_Length(bufferSize))
 
-        // Use vDSP to clip values to valid range
-        var minValue: Float = 0.0
-        var maxValue: Float = 255.0
-        vDSP_vclip(tempBuffer, 1, &minValue, &maxValue, tempBuffer, 1, vDSP_Length(bufferSize))
+            // Convert Float to UInt8 in batch
+            var result = [UInt8](repeating: 0, count: bufferSize)
+            result.withUnsafeMutableBufferPointer { buffer in
+                vDSP_vfix8(tempAddress, 1, buffer.baseAddress!, 1, vDSP_Length(bufferSize))
+            }
 
-        // Convert Float to UInt8 in batch
-        var result = [UInt8](repeating: 0, count: bufferSize)
-        result.withUnsafeMutableBufferPointer { buffer in
-            vDSP_vfix8(tempBuffer, 1, buffer.baseAddress!, 1, vDSP_Length(bufferSize))
+            return result
         }
-
-        return result
     }
 }

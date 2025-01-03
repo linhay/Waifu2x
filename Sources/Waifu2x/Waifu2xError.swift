@@ -15,6 +15,7 @@ public enum Waifu2xError: LocalizedError {
     case expandImageFailed
     case vImageScalingFailed
     case coreMLError(String)
+    case createImageFailed(String)
 
     public var errorDescription: String? {
         switch self {
@@ -24,6 +25,7 @@ public enum Waifu2xError: LocalizedError {
         case .expandImageFailed: "Failed to expand image when image is too small"
         case .vImageScalingFailed: "Failed to scale alpha channel using vImage"
         case let .coreMLError(desc): "Core ML error: \(desc)"
+        case let .createImageFailed(desc): "Create Image Failed, \(desc)"
         }
     }
 }
