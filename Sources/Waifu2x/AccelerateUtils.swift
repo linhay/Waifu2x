@@ -42,9 +42,9 @@ extension CGImage {
         return contextCG
     }
 
-    func alpha() -> [UInt8]? {
+    func alpha() throws -> [UInt8]? {
         guard alphaInfo != CGImageAlphaInfo.none else { return nil }
-        var array = alphaUInt8Array()
+        var array = try alphaUInt8Array()
         var floatAlpha = [Float](repeating: 0, count: array.count)
         // Check if it really has alpha
         var minValue: Float = 1.0

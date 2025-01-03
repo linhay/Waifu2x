@@ -54,7 +54,7 @@ public struct Waifu2x: Sendable {
 
         // Alpha channel support
         let alphaTask = Task {
-            guard var alpha = image.alpha() else { return false }
+            guard var alpha = try image.alpha() else { return false }
             #if DEBUG_MODE
                 print("image really with alpha")
             #endif

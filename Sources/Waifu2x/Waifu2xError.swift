@@ -11,6 +11,7 @@ import Foundation
 public enum Waifu2xError: LocalizedError {
     case blockRunFailed
     case getCGImageFailed
+    case unsupportedAlphaBits(Int)
     case expandImageFailed
     case vImageScalingFailed
     case coreMLError(String)
@@ -19,6 +20,7 @@ public enum Waifu2xError: LocalizedError {
         switch self {
         case .blockRunFailed: "Fail to run when block the thread"
         case .getCGImageFailed: "Failed to get CGImage from Data"
+        case let .unsupportedAlphaBits(bit): "Unsupported \(bit) bits alpha channel"
         case .expandImageFailed: "Failed to expand image when image is too small"
         case .vImageScalingFailed: "Failed to scale alpha channel using vImage"
         case let .coreMLError(desc): "Core ML error: \(desc)"
