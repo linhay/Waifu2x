@@ -167,7 +167,7 @@ actor OutputTask {
             width: out_width, height: out_height
         )
 
-        return CFDataCreate(nil, destPixels, destPixels.count)!
+        return Data(destPixels) as CFData
     }
 }
 

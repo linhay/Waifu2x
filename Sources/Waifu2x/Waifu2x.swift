@@ -53,17 +53,17 @@ public struct Waifu2x: Sendable {
         )
 
         // Alpha channel support
-        let alpha = image.alpha()
-        #if DEBUG_MODE
-            print("really with alpha: \(alpha != nil)")
-        #endif
-        let alpha_task: (() async throws -> Void)? = if let alphaArray = alpha { {
-            var alphaChannel = alphaArray
+        let alphaTask = Task {
+            guard var alpha = image.alpha() else { return false }
+            #if DEBUG_MODE
+                print("image really with alpha")
+            #endif
             if out_scale > 1 {
-                alphaChannel = try alphaArray.scaleAlpha(width: width, height: height, scale: out_scale)
+                alpha = try alpha.scaleAlpha(width: width, height: height, scale: out_scale)
             }
-            await outputTask.mergeAlpha(alpha: alphaChannel)
-        } } else { nil }
+            await outputTask.mergeAlpha(alpha: alpha)
+            return true
+        }
 
         // If image is too small, that will expand it
         let preExpandImage = try image.preExpand(block_size: block_size)
@@ -79,8 +79,6 @@ public struct Waifu2x: Sendable {
         )
 
         try await withThrowingTaskGroup(of: Void.self) { it in
-            it.addTask { try await alpha_task?() }
-
             let rects = preExpandImage.getCropRects(block_size)
             for i in stride(from: 0, to: rects.count, by: batchSize) {
                 let end = min(i + batchSize, rects.count)
@@ -88,6 +86,7 @@ public struct Waifu2x: Sendable {
             }
             try await it.waitForAll()
         }
+        let hasAlpha = try await alphaTask.value
 
         let out_width = width * out_scale
         let out_height = height * out_scale
@@ -95,7 +94,7 @@ public struct Waifu2x: Sendable {
         let dataProvider = CGDataProvider(data: cfbuffer)!
         let colorSpace = CGColorSpaceCreateDeviceRGB()
         var bitmapInfo = CGBitmapInfo.byteOrder32Big.rawValue
-        if alpha != nil {
+        if hasAlpha {
             bitmapInfo |= CGImageAlphaInfo.last.rawValue
         } else {
             bitmapInfo |= CGImageAlphaInfo.noneSkipLast.rawValue
