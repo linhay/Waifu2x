@@ -9,7 +9,7 @@
 //  Copyright © 2024 vuhe. All rights reserved.
 //
 
-import CoreML
+import CoreGraphics
 
 public struct Waifu2x: Sendable {
     /// The output block size.

@@ -6,6 +6,7 @@
 //  Copyright © 2024 vuhe. All rights reserved.
 //
 
+import Accelerate
 import CoreGraphics
 
 extension CGImage {
@@ -36,7 +37,8 @@ extension CGImage {
         }
     }
 
-    func alphaUInt8Array() throws -> [UInt8] {
+    func alpha() throws -> [UInt8]? {
+        guard alphaInfo != CGImageAlphaInfo.none else { return nil }
         #if DEBUG_MODE
             print("Bits per component: \(bitsPerComponent)")
         #endif
@@ -58,6 +60,15 @@ extension CGImage {
         default:
             throw Waifu2xError.unsupportedAlphaBits(bitsPerComponent)
         }
+
+        var floatAlpha = [Float](repeating: 0, count: data.count)
+        // Check if it really has alpha
+        var minValue: Float = 1.0
+        var minIndex: vDSP_Length = 0
+        vDSP_vfltu8(&data, 1, &floatAlpha, 1, vDSP_Length(data.count))
+        vDSP_minvi(&floatAlpha, 1, &minValue, &minIndex, vDSP_Length(data.count))
+        guard minValue < 255.0 else { return nil }
+
         return data
     }
 }
