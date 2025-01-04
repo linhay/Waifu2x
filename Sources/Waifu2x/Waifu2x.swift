@@ -87,7 +87,7 @@ public struct Waifu2x: Sendable {
 
         let out_width = width * out_scale
         let out_height = height * out_scale
-        let cfbuffer = await imageMerger.freezeImage()
+        let cfbuffer = try await imageMerger.freezeImage()
         guard let dataProvider = CGDataProvider(data: cfbuffer)
         else { throw Waifu2xError.createImageFailed("new CGDataProvider, but return nil") }
         let colorSpace = CGColorSpaceCreateDeviceRGB()
