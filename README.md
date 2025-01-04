@@ -18,10 +18,10 @@
 
 > 仅在 macOS 15 上构建通过，其他平台未测试
 
-- macOS 12+
-- iOS 15+
-- tvOS 15+
-- watchOS 8+
+- macOS 13+
+- iOS 16+
+- tvOS 16+
+- watchOS 9+
 - visionOS 1+
 
 **构建需要 Xcode 15+**

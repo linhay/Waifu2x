@@ -168,25 +168,26 @@ struct ExpandedImage: Sendable {
         let array = try Result { try MLMultiArray(shape: shape, dataType: .float32) }
             .mapError { Waifu2xError.coreMLError($0.localizedDescription) }
             .get()
-        let arrayPtr = array.dataPointer.assumingMemoryBound(to: Float.self)
 
         // Get data for all three channels
         let channels = [r, g, b]
 
         // Process each RGB channel concurrently
         for channel in 0 ..< 3 {
-            channels[channel].withUnsafeBufferPointer { channelPtr in
-                let srcOffset = y * expWidth + x
-                let destOffset = channel * channelSize
+            array.withUnsafeMutableBufferPointer(ofType: Float.self) { arrayPtr, _ in
+                channels[channel].withUnsafeBufferPointer { channelPtr in
+                    let srcOffset = y * expWidth + x
+                    let destOffset = channel * channelSize
 
-                vDSP_mmov(
-                    channelPtr.baseAddress!.advanced(by: srcOffset),
-                    arrayPtr.advanced(by: destOffset),
-                    vDSP_Length(blockSize), // Number of elements to copy per row
-                    vDSP_Length(blockSize), // Number of rows to copy
-                    vDSP_Length(expWidth), // Source stride
-                    vDSP_Length(blockSize) // Destination stride
-                )
+                    vDSP_mmov(
+                        channelPtr.baseAddress!.advanced(by: srcOffset),
+                        arrayPtr.baseAddress!.advanced(by: destOffset),
+                        vDSP_Length(blockSize), // Number of elements to copy per row
+                        vDSP_Length(blockSize), // Number of rows to copy
+                        vDSP_Length(expWidth), // Source stride
+                        vDSP_Length(blockSize) // Destination stride
+                    )
+                }
             }
         }
 
