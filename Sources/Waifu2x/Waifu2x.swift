@@ -48,7 +48,7 @@ public struct Waifu2x: Sendable {
         let width = image.width
         let height = image.height
         let channels = 4 // Higher versions only allow the creation of 4 channels
-        let outputTask = OutputTask(
+        let imageMerger = ImageMerger(
             width: width, height: height, block_size: block_size, out_scale: out_scale, channels: channels
         )
 
@@ -61,7 +61,7 @@ public struct Waifu2x: Sendable {
             if out_scale > 1 {
                 alpha = try alpha.scaleAlpha(width: width, height: height, scale: out_scale)
             }
-            await outputTask.mergeAlpha(alpha: alpha)
+            await imageMerger.mergeAlpha(alpha: alpha)
             return true
         }
 
@@ -72,7 +72,7 @@ public struct Waifu2x: Sendable {
                 image: preExpandImage, blockSize: block_size, shrinkSize: shrink_size, clipEta8: clip_eta8
             )),
             model: ModelTask(model),
-            output: outputTask
+            output: imageMerger
         )
 
         try await withThrowingTaskGroup(of: Void.self) { it in
@@ -87,7 +87,7 @@ public struct Waifu2x: Sendable {
 
         let out_width = width * out_scale
         let out_height = height * out_scale
-        let cfbuffer = await outputTask.freezeImage()
+        let cfbuffer = await imageMerger.freezeImage()
         guard let dataProvider = CGDataProvider(data: cfbuffer)
         else { throw Waifu2xError.createImageFailed("new CGDataProvider, but return nil") }
         let colorSpace = CGColorSpaceCreateDeviceRGB()
