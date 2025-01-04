@@ -24,24 +24,14 @@ private final class Waifu2xInput: MLFeatureProvider {
 }
 
 actor InputTask {
-    private let expanded: [Float]
-    private let blockSize, expwidth, expheight: Int
+    private let expanded: ExpandedImage
 
-    init(expanded: [Float], blockSize: Int, expwidth: Int, expheight: Int) {
+    init(_ expanded: ExpandedImage) {
         self.expanded = expanded
-        self.blockSize = blockSize
-        self.expwidth = expwidth
-        self.expheight = expheight
     }
 
     fileprivate func handleInput(rects: [CGRect]) throws -> MLArrayBatchProvider {
-        let batch = try rects.map { rect in
-            let input = try expanded.convertToML(
-                x: Int(rect.origin.x), y: Int(rect.origin.y),
-                blockSize: blockSize, expwidth: expwidth, expheight: expheight
-            )
-            return Waifu2xInput(input)
-        }
+        let batch = try rects.map { try Waifu2xInput(expanded.convertToML(rect: $0)) }
         return MLArrayBatchProvider(array: batch)
     }
 }

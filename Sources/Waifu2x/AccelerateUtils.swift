@@ -9,6 +9,27 @@
 import Accelerate
 import CoreML
 
+typealias VImagePointer<T> = UnsafeMutableBufferPointer<T>
+
+func withUnsafeMutableBufferPointer<T1, T2, T3, T4, T5>(
+    _ a: inout [T1], _ b: inout [T2], _ c: inout [T3], _ d: inout [T4], _ e: inout [T5],
+    invoke: @escaping (
+        VImagePointer<T1>, VImagePointer<T2>, VImagePointer<T3>, VImagePointer<T4>, VImagePointer<T5>
+    ) throws -> Void
+) throws {
+    try a.withUnsafeMutableBufferPointer { aBuffer in
+        try b.withUnsafeMutableBufferPointer { bBuffer in
+            try c.withUnsafeMutableBufferPointer { cBuffer in
+                try d.withUnsafeMutableBufferPointer { dBuffer in
+                    try e.withUnsafeMutableBufferPointer { eBuffer in
+                        try invoke(aBuffer, bBuffer, cBuffer, dBuffer, eBuffer)
+                    }
+                }
+            }
+        }
+    }
+}
+
 extension CGImage {
     /// Expand the image to a size larger than block_size
     func preExpand(block_size: Int) throws -> CGImage {
@@ -52,43 +73,6 @@ extension CGImage {
         vDSP_vfltu8(&array, 1, &floatAlpha, 1, vDSP_Length(array.count))
         vDSP_minvi(&floatAlpha, 1, &minValue, &minIndex, vDSP_Length(array.count))
         guard minValue < 255.0 else { return nil }
-        return array
-    }
-}
-
-extension [Float] {
-    /// Use vImage to convert the RGB format to the planar format required by the waifu2x model
-    func convertToML(x: Int, y: Int, blockSize: Int, expwidth: Int, expheight: Int) throws -> MLMultiArray {
-        let channelSize = blockSize * blockSize
-
-        // Create MLMultiArray with shape [channels, height, width]
-        let shape: [NSNumber] = [3, NSNumber(value: blockSize), NSNumber(value: blockSize)]
-        let array = try Result { try MLMultiArray(shape: shape, dataType: .float32) }
-            .mapError { Waifu2xError.coreMLError($0.localizedDescription) }
-            .get()
-        let arrayPtr = array.dataPointer.assumingMemoryBound(to: Float.self)
-
-        // Process each RGB channel concurrently
-        for channel in 0 ..< 3 {
-            let channelOffset = channel * expwidth * expheight
-            let destBaseOffset = channel * channelSize
-
-            // Copy each row of the block
-            for row in 0 ..< blockSize {
-                let srcOffset = channelOffset + (y + row) * expwidth + x
-                let destOffset = destBaseOffset + row * blockSize
-
-                // Use vDSP for optimized memory copy
-                withUnsafeBufferPointer { buffer in
-                    let src = UnsafePointer(buffer.baseAddress!.advanced(by: srcOffset))
-                    let dest = UnsafeMutablePointer(arrayPtr.advanced(by: destOffset))
-
-                    // Copy the current row data
-                    vDSP_mmov(src, dest, vDSP_Length(blockSize), 1, 1, 1)
-                }
-            }
-        }
-
         return array
     }
 }

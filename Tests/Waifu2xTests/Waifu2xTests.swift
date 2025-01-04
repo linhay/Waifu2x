@@ -16,12 +16,9 @@ import Testing
 #endif
 
 @Test func testModel() async throws {
-    let monitor = PerformanceMonitor()
     let url = Bundle.module.url(forResource: "white", withExtension: "png")!
-    _ = try! await monitor.measure {
-        let waifu2x = Waifu2x(model: .anime_noise3_scale2x)
-        return try await waifu2x.run(Data(contentsOf: url))
-    }
+    let waifu2x = Waifu2x(model: .anime_noise3_scale2x)
+    _ = try await waifu2x.run(Data(contentsOf: url))
 }
 
 @Test func testAllModels() async throws {

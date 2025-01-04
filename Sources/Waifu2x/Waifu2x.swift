@@ -67,13 +67,10 @@ public struct Waifu2x: Sendable {
 
         // If image is too small, that will expand it
         let preExpandImage = try image.preExpand(block_size: block_size)
-        let pipeline = PipelineTask(
-            input: InputTask(
-                expanded: preExpandImage.expand(shrink_size: shrink_size, clip_eta8: clip_eta8),
-                blockSize: block_size + 2 * shrink_size,
-                expwidth: preExpandImage.width + 2 * shrink_size,
-                expheight: preExpandImage.height + 2 * shrink_size
-            ),
+        let pipeline = try PipelineTask(
+            input: InputTask(ExpandedImage(
+                image: preExpandImage, blockSize: block_size, shrinkSize: shrink_size, clipEta8: clip_eta8
+            )),
             model: ModelTask(model),
             output: outputTask
         )
