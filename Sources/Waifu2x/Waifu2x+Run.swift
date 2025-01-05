@@ -137,7 +137,7 @@ public extension Waifu2x {
         let mainOutputName = mainModelInfo.outputName
 
         let model = Waifu2xModelInfo(
-            name: name, inputShape: inputShape,
+            name: name, dataType: .interleaved, inputShape: inputShape,
             shrinkSize: shrinkSize, outScale: outScale, blockSize: blockSize,
             mainModel: mainModel, mainInputName: mainInputName, mainOutputName: mainOutputName
         )

@@ -70,7 +70,7 @@ struct PipelineTask: Sendable {
             let out = outs.features(at: i)
             guard let result = out.featureValue(for: outputName)?.multiArrayValue
             else { throw Waifu2xError.coreMLError("main model outputName is incorrect") }
-            await output.mergeRGB(rects[i], result)
+            try await output.mergeRGB(rects[i], result)
         }
     }
 }

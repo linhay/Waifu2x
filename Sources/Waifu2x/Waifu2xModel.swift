@@ -11,8 +11,13 @@
 
 import CoreML
 
+enum Waifu2xModelDataType {
+    case planar, interleaved
+}
+
 struct Waifu2xModelInfo {
     let name: String
+    let dataType: Waifu2xModelDataType
     let inputShape: [NSNumber]
     // for input:  block size = blockSize + shrinkSize * 2
     // for output: block size = blockSize * outScale
@@ -57,7 +62,7 @@ extension Waifu2xModel {
         // Loading embedded models should not result in errors
         let mainModel = try! MLModel(contentsOf: assetPath!)
         return Waifu2xModelInfo(
-            name: rawValue, inputShape: inputShape.map { NSNumber(value: $0) },
+            name: rawValue, dataType: .planar, inputShape: inputShape.map { NSNumber(value: $0) },
             shrinkSize: 7, outScale: outScale, blockSize: blockSize,
             mainModel: mainModel, mainInputName: "input", mainOutputName: "conv7"
         )
