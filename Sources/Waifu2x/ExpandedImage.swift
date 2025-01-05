@@ -10,11 +10,6 @@ import Accelerate
 import CoreImage
 import CoreML
 
-/// Do not exactly know its function
-/// However it can on average improve PSNR by 0.09
-/// https://github.com/nagadomi/waifu2x/commit/797b45ae23665a1c5e3c481c018e48e6f0d0e383
-private let clipEta8 = Float(0.00196)
-
 private extension [Float] {
     mutating func expandChannel(width: Int, height: Int, shrink_size: Int) -> [Float] {
         let exwidth = width + 2 * shrink_size
@@ -84,8 +79,12 @@ private extension [Float] {
         // 3. 复制原图数据到中心位置并添加增益
         withUnsafeMutableBufferPointer { tempPtr in
             result.withUnsafeMutableBufferPointer { resultPtr in
-                var clip = clipEta8
-                vDSP_vsadd(tempPtr.baseAddress!, 1, &clip, tempPtr.baseAddress!, 1, vDSP_Length(width * height))
+                // Do not exactly know its function
+                // However it can on average improve PSNR by 0.09
+                // https://github.com/nagadomi/waifu2x/commit/797b45ae23665a1c5e3c481c018e48e6f0d0e383
+                var clipEta8 = Float(0.00196)
+                vDSP_vsadd(tempPtr.baseAddress!, 1, &clipEta8, tempPtr.baseAddress!, 1, vDSP_Length(width * height))
+
                 vDSP_mmov(
                     tempPtr.baseAddress!,
                     resultPtr.baseAddress!.advanced(by: shrink_size * exwidth + shrink_size),
@@ -225,27 +224,45 @@ struct ExpandedImage: Sendable {
         var gBuffer = [Float](repeating: 0, count: channelSize)
         var bBuffer = [Float](repeating: 0, count: channelSize)
 
-        // Get data for all three channels
-        let channels = [r, g, b]
-        var buffers = [rBuffer, gBuffer, bBuffer]
-
         // Process each RGB channel concurrently
-        for channel in 0 ..< 3 {
-            buffers[channel].withUnsafeMutableBufferPointer { arrayPtr in
-                channels[channel].withUnsafeBufferPointer { channelPtr in
-                    let srcOffset = y * expWidth + x
-
-                    vDSP_mmov(
-                        channelPtr.baseAddress!.advanced(by: srcOffset),
-                        arrayPtr.baseAddress!,
-                        vDSP_Length(inputBlockSize), // Number of elements to copy per row
-                        vDSP_Length(inputBlockSize), // Number of rows to copy
-                        vDSP_Length(expWidth), // Source stride
-                        vDSP_Length(inputBlockSize) // Destination stride
-                    )
-                }
+        let srcOffset = y * expWidth + x
+        rBuffer.withUnsafeMutableBufferPointer { arrayPtr in
+            r.withUnsafeBufferPointer { channelPtr in
+                vDSP_mmov(
+                    channelPtr.baseAddress!.advanced(by: srcOffset),
+                    arrayPtr.baseAddress!,
+                    vDSP_Length(inputBlockSize), // Number of elements to copy per row
+                    vDSP_Length(inputBlockSize), // Number of rows to copy
+                    vDSP_Length(expWidth), // Source stride
+                    vDSP_Length(inputBlockSize) // Destination stride
+                )
             }
         }
+        gBuffer.withUnsafeMutableBufferPointer { arrayPtr in
+            g.withUnsafeBufferPointer { channelPtr in
+                vDSP_mmov(
+                    channelPtr.baseAddress!.advanced(by: srcOffset),
+                    arrayPtr.baseAddress!,
+                    vDSP_Length(inputBlockSize), // Number of elements to copy per row
+                    vDSP_Length(inputBlockSize), // Number of rows to copy
+                    vDSP_Length(expWidth), // Source stride
+                    vDSP_Length(inputBlockSize) // Destination stride
+                )
+            }
+        }
+        bBuffer.withUnsafeMutableBufferPointer { arrayPtr in
+            b.withUnsafeBufferPointer { channelPtr in
+                vDSP_mmov(
+                    channelPtr.baseAddress!.advanced(by: srcOffset),
+                    arrayPtr.baseAddress!,
+                    vDSP_Length(inputBlockSize), // Number of elements to copy per row
+                    vDSP_Length(inputBlockSize), // Number of rows to copy
+                    vDSP_Length(expWidth), // Source stride
+                    vDSP_Length(inputBlockSize) // Destination stride
+                )
+            }
+        }
+        print("\(rBuffer[0]),\(gBuffer[0]),\(bBuffer[0])")
 
         // convert planar to RGB
         try array.withUnsafeMutableBufferPointer(ofType: Float.self) { dest, _ in
