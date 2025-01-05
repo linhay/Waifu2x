@@ -10,6 +10,7 @@ import Foundation
 
 public enum Waifu2xError: LocalizedError {
     case blockRunFailed
+    case loadModelFailed(String)
     case getCGImageFailed
     case unsupportedAlphaBits(Int)
     case expandImageFailed
@@ -20,6 +21,7 @@ public enum Waifu2xError: LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .blockRunFailed: "Fail to run when block the thread"
+        case let .loadModelFailed(desc): "Fail to load model, \(desc)"
         case .getCGImageFailed: "Failed to get CGImage from Data"
         case let .unsupportedAlphaBits(bit): "Unsupported \(bit) bits alpha channel"
         case .expandImageFailed: "Failed to expand image when image is too small"

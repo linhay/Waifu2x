@@ -18,13 +18,13 @@ actor ImageMerger {
     private var bChannel: [UInt8]
     private var aChannel: [UInt8]
 
-    init(width: Int, height: Int, block_size: Int, out_scale: Int, channels: Int) {
-        let out_width = width * out_scale
-        let out_height = height * out_scale
+    init(width: Int, height: Int, model: Waifu2xModelInfo, channels: Int) {
+        let out_width = width * model.outScale
+        let out_height = height * model.outScale
         self.width = width
         self.height = height
-        self.block_size = block_size
-        self.out_scale = out_scale
+        block_size = model.blockSize
+        out_scale = model.outScale
         self.channels = channels
 
         let size = out_width * out_height

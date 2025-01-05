@@ -12,34 +12,10 @@
 import CoreGraphics
 
 public struct Waifu2x: Sendable {
-    /// The output block size.
-    /// It is dependent on the model.
-    /// Do not modify it until you are sure your model has a different number.
-    private let block_size: Int
-
-    private let out_scale: Int
-
-    /// The difference between output and input block size
-    private let shrink_size = 7
-
-    /// Do not exactly know its function
-    /// However it can on average improve PSNR by 0.09
-    /// https://github.com/nagadomi/waifu2x/commit/797b45ae23665a1c5e3c481c018e48e6f0d0e383
-    private let clip_eta8 = Float(0.00196)
-
-    private let model: Waifu2xModel
-
+    private let model: Waifu2xModelInfo
     private let batchSize: Int
 
-    public init(model: Waifu2xModel, batchSize: Int = 10) {
-        switch model {
-        case .anime_noise0, .anime_noise1, .anime_noise2, .anime_noise3, .photo_noise0, .photo_noise1, .photo_noise2, .photo_noise3:
-            block_size = 128
-            out_scale = 1
-        default:
-            block_size = 142
-            out_scale = 2
-        }
+    init(_ model: Waifu2xModelInfo, batchSize: Int = 10) {
         self.model = model
         self.batchSize = batchSize
     }
@@ -47,10 +23,9 @@ public struct Waifu2x: Sendable {
     public func run(_ image: CGImage) async throws -> Waifu2xData {
         let width = image.width
         let height = image.height
+        let outScale = model.outScale
         let channels = 4 // Higher versions only allow the creation of 4 channels
-        let imageMerger = ImageMerger(
-            width: width, height: height, block_size: block_size, out_scale: out_scale, channels: channels
-        )
+        let imageMerger = ImageMerger(width: width, height: height, model: model, channels: channels)
 
         // Alpha channel support
         let alphaTask = Task {
@@ -58,25 +33,23 @@ public struct Waifu2x: Sendable {
             #if DEBUG_MODE
                 print("image really with alpha")
             #endif
-            if out_scale > 1 {
-                alpha = try alpha.scaleAlpha(width: width, height: height, scale: out_scale)
+            if outScale > 1 {
+                alpha = try alpha.scaleAlpha(width: width, height: height, scale: outScale)
             }
             await imageMerger.mergeAlpha(alpha: alpha)
             return true
         }
 
         // If image is too small, that will expand it
-        let preExpandImage = try image.preExpand(block_size: block_size)
+        let preExpandImage = try image.preExpand(model.blockSize)
         let pipeline = try PipelineTask(
-            input: InputTask(ExpandedImage(
-                image: preExpandImage, blockSize: block_size, shrinkSize: shrink_size, clipEta8: clip_eta8
-            )),
+            input: InputTask(ExpandedImage(preExpandImage, model), inputName: model.mainInputName),
             model: ModelTask(model),
-            output: imageMerger
+            output: imageMerger, outputName: model.mainOutputName
         )
 
         try await withThrowingTaskGroup(of: Void.self) { it in
-            let rects = preExpandImage.getCropRects(block_size)
+            let rects = preExpandImage.getCropRects(model.blockSize)
             for i in stride(from: 0, to: rects.count, by: batchSize) {
                 let end = min(i + batchSize, rects.count)
                 it.addTask { try await pipeline.run(rects: Array(rects[i ..< end])) }
@@ -85,8 +58,8 @@ public struct Waifu2x: Sendable {
         }
         let hasAlpha = try await alphaTask.value
 
-        let out_width = width * out_scale
-        let out_height = height * out_scale
+        let out_width = width * outScale
+        let out_height = height * outScale
         let cfbuffer = try await imageMerger.freezeImage()
         guard let dataProvider = CGDataProvider(data: cfbuffer)
         else { throw Waifu2xError.createImageFailed("new CGDataProvider, but return nil") }

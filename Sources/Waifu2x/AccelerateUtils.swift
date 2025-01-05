@@ -31,7 +31,7 @@ func withUnsafeMutableBufferPointer<T1, T2, T3, T4, T5>(
 
 extension CGImage {
     /// Expand the image to a size larger than block_size
-    func preExpand(block_size: Int) throws -> CGImage {
+    func preExpand(_ block_size: Int) throws -> CGImage {
         // Check if expansion is needed
         guard width < block_size || height < block_size else { return self }
 

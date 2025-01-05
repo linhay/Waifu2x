@@ -9,9 +9,13 @@ let package = Package(
     products: [
         .library(name: "Waifu2x", targets: ["Waifu2x"]),
     ],
+    dependencies: [
+        .package(url: "https://github.com/weichsel/ZIPFoundation.git", .upToNextMajor(from: "0.9.0")),
+    ],
     targets: [
         .target(
             name: "Waifu2x",
+            dependencies: ["ZIPFoundation"],
             resources: [.process("models")]
         ),
         .testTarget(
