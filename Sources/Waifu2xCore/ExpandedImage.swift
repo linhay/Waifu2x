@@ -161,7 +161,7 @@ struct ExpandedImage: Sendable {
         b = bChannel.expandChannel(width: width, height: height, shrink_size: model.shrinkSize)
         inputBlockSize = model.blockSize + 2 * model.shrinkSize
         expWidth = width + 2 * model.shrinkSize
-        shape = model.inputShape
+        shape = model.inputShape.map { NSNumber(value: $0) }
         dataType = model.dataType
     }
 

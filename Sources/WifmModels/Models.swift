@@ -1,58 +1,13 @@
 //
-//  Waifu2x+Run.swift
+//  Models.swift
 //  Waifu2x
 //
-//  Created by vuhe on 2025/1/1.
+//  Created by vuhe on 2025/1/6.
 //  Copyright © 2025 vuhe. All rights reserved.
 //
 
-import CoreImage
-
-public extension Waifu2x {
-    init(model: Waifu2xModel, batchSize: Int = 10) {
-        self.init(model.model, batchSize: batchSize)
-    }
-
-    func run(_ data: Data) async throws -> Waifu2xData {
-        guard let imageSource = CGImageSourceCreateWithData(data as CFData, nil),
-              let cgimg = CGImageSourceCreateImageAtIndex(imageSource, 0, nil)
-        else { throw Waifu2xError.getCGImageFailed }
-        return try await run(cgimg)
-    }
-
-    /// Processing method applicable to GCD.
-    ///
-    /// This method will block the thread. Do not call it in the Task context.
-    func runAndWait(_ data: Data) throws -> Waifu2xData {
-        guard let imageSource = CGImageSourceCreateWithData(data as CFData, nil),
-              let cgimg = CGImageSourceCreateImageAtIndex(imageSource, 0, nil)
-        else { throw Waifu2xError.getCGImageFailed }
-        return try runAndWait(cgimg)
-    }
-
-    /// Processing method applicable to GCD.
-    ///
-    /// This method will block the thread. Do not call it in the Task context.
-    func runAndWait(_ image: CGImage) throws -> Waifu2xData {
-        var result: Result<Waifu2xData, any Error> = .failure(Waifu2xError.blockRunFailed)
-        let group = DispatchGroup()
-        group.enter()
-        Task {
-            do {
-                result = try await .success(run(image))
-            } catch {
-                result = .failure(error)
-            }
-            group.leave()
-        }
-        group.wait()
-        return try result.get()
-    }
-}
-
-// MARK: - 加载自定义模型
-
 import CoreML
+import Waifu2xCore
 import ZIPFoundation
 
 // manifest.json 的结构
@@ -105,23 +60,34 @@ private struct Waifu2xModelManifest: Decodable {
     }
 }
 
-public extension Waifu2x {
-    static func loadCustom(wifmFile: URL, batchSize: Int = 10) async throws -> Waifu2x {
+public struct WifmModel: Waifu2xModelInfo, @unchecked Sendable {
+    public let name: String
+    public let dataType: Waifu2xCore.Waifu2xModelDataType
+    public let inputShape: [Int]
+    public let shrinkSize: Int
+    public let outScale: Int
+    public let blockSize: Int
+    public let mainModel: MLModel
+    public let mainInputName: String
+    public let mainOutputName: String
+
+    init(file: URL) async throws {
         // 解压整个文件到临时目录
         let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: tempDir) }
-        try FileManager.default.unzipItem(at: wifmFile, to: tempDir)
+        try FileManager.default.unzipItem(at: file, to: tempDir)
 
         // 读取并解析 manifest.json
         let manifestURL = tempDir.appendingPathComponent("manifest.json")
         let manifestData = try Data(contentsOf: manifestURL)
         let manifest = try JSONDecoder().decode(Waifu2xModelManifest.self, from: manifestData)
-        let name = manifest.name
-        let inputShape = manifest.inputShape.map { NSNumber(value: $0) }
-        let shrinkSize = manifest.shrinkSize
-        let outScale = manifest.scale
-        let blockSize = try manifest.outputBlockSize
+        name = manifest.name
+        dataType = .interleaved
+        inputShape = manifest.inputShape
+        shrinkSize = manifest.shrinkSize
+        outScale = manifest.scale
+        blockSize = try manifest.outputBlockSize
 
         // 验证版本和类型
         guard manifest.version == 1
@@ -132,15 +98,8 @@ public extension Waifu2x {
         // 加载模型
         let mainModelURL = tempDir.appendingPathComponent(mainModelInfo.file)
         let compiledMainModelURL = try await MLModel.compileModel(at: mainModelURL)
-        let mainModel = try MLModel(contentsOf: compiledMainModelURL)
-        let mainInputName = mainModelInfo.inputName
-        let mainOutputName = mainModelInfo.outputName
-
-        let model = Waifu2xModelInfo(
-            name: name, dataType: .interleaved, inputShape: inputShape,
-            shrinkSize: shrinkSize, outScale: outScale, blockSize: blockSize,
-            mainModel: mainModel, mainInputName: mainInputName, mainOutputName: mainOutputName
-        )
-        return Waifu2x(model, batchSize: batchSize)
+        mainModel = try MLModel(contentsOf: compiledMainModelURL)
+        mainInputName = mainModelInfo.inputName
+        mainOutputName = mainModelInfo.outputName
     }
 }

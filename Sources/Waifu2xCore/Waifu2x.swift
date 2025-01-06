@@ -15,7 +15,7 @@ public struct Waifu2x: Sendable {
     private let model: Waifu2xModelInfo
     private let batchSize: Int
 
-    init(_ model: Waifu2xModelInfo, batchSize: Int = 10) {
+    public init(_ model: Waifu2xModelInfo, batchSize: Int = 10) {
         self.model = model
         self.batchSize = batchSize
     }
