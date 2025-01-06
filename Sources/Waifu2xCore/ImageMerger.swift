@@ -26,7 +26,7 @@ actor ImageMerger {
         self.height = height
         block_size = model.blockSize
         out_scale = model.outScale
-        dataType = model.dataType
+        dataType = model.outputDataType
         self.channels = channels
 
         let size = out_width * out_height

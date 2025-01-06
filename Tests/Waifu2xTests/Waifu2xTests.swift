@@ -8,13 +8,8 @@
 
 import Cocoa
 import Testing
+import Waifu2xCore
 import Waifu2xModels
-
-#if DEBUG
-    @testable import Waifu2xCore
-#else
-    import Waifu2xCore
-#endif
 
 @Test func testModel() async throws {
     let url = Bundle.module.url(forResource: "white", withExtension: "png")!

@@ -62,14 +62,11 @@ private struct Waifu2xModelManifest: Decodable {
 
 public struct WifmModel: Waifu2xModelInfo, @unchecked Sendable {
     public let name: String
-    public let dataType: Waifu2xCore.Waifu2xModelDataType
+    public let inputDataType, outputDataType: Waifu2xCore.Waifu2xModelDataType
     public let inputShape: [Int]
-    public let shrinkSize: Int
-    public let outScale: Int
-    public let blockSize: Int
+    public let shrinkSize, outScale, blockSize: Int
     public let mainModel: MLModel
-    public let mainInputName: String
-    public let mainOutputName: String
+    public let mainInputName, mainOutputName: String
 
     init(file: URL) async throws {
         // 解压整个文件到临时目录
@@ -83,7 +80,8 @@ public struct WifmModel: Waifu2xModelInfo, @unchecked Sendable {
         let manifestData = try Data(contentsOf: manifestURL)
         let manifest = try JSONDecoder().decode(Waifu2xModelManifest.self, from: manifestData)
         name = manifest.name
-        dataType = .interleaved
+        inputDataType = .planar
+        outputDataType = .interleaved
         inputShape = manifest.inputShape
         shrinkSize = manifest.shrinkSize
         outScale = manifest.scale
@@ -101,5 +99,11 @@ public struct WifmModel: Waifu2xModelInfo, @unchecked Sendable {
         mainModel = try MLModel(contentsOf: compiledMainModelURL)
         mainInputName = mainModelInfo.inputName
         mainOutputName = mainModelInfo.outputName
+    }
+}
+
+public extension Waifu2x {
+    init(wifm file: URL, batchSize: Int = 10) async throws {
+        try await self.init(WifmModel(file: file), batchSize: batchSize)
     }
 }

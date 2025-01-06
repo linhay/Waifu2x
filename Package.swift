@@ -29,7 +29,7 @@ let package = Package(
         ),
         .testTarget(
             name: "Waifu2xTests",
-            dependencies: ["Waifu2xCore", "Waifu2xModels"],
+            dependencies: ["Waifu2xCore", "Waifu2xModels", "WifmModels"],
             resources: [.copy("white.png")]
         ),
     ]

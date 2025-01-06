@@ -162,7 +162,7 @@ struct ExpandedImage: Sendable {
         inputBlockSize = model.blockSize + 2 * model.shrinkSize
         expWidth = width + 2 * model.shrinkSize
         shape = model.inputShape.map { NSNumber(value: $0) }
-        dataType = model.dataType
+        dataType = model.inputDataType
     }
 
     func convertToML(rect: CGRect) throws -> MLMultiArray {

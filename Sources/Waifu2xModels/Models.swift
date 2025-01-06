@@ -43,7 +43,8 @@ private extension Waifu2xSrcnnModel {
 
 extension Waifu2xSrcnnModel: Waifu2xModelInfo {
     public var name: String { rawValue }
-    public var dataType: Waifu2xModelDataType { .planar }
+    public var inputDataType: Waifu2xModelDataType { .planar }
+    public var outputDataType: Waifu2xModelDataType { .planar }
     public var inputShape: [Int] { if scale2x { [3, 156, 156] } else { [3, 142, 142] } }
     public var shrinkSize: Int { 7 }
     public var outScale: Int { if scale2x { 2 } else { 1 } }

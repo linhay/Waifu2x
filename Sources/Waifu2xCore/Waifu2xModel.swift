@@ -17,7 +17,8 @@ public enum Waifu2xModelDataType: Sendable {
 
 public protocol Waifu2xModelInfo: Sendable {
     var name: String { get }
-    var dataType: Waifu2xModelDataType { get }
+    var inputDataType: Waifu2xModelDataType { get }
+    var outputDataType: Waifu2xModelDataType { get }
     var inputShape: [Int] { get }
     // for input:  block size = blockSize + shrinkSize * 2
     // for output: block size = blockSize * outScale
