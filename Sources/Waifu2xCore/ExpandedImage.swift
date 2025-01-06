@@ -262,7 +262,6 @@ struct ExpandedImage: Sendable {
                 )
             }
         }
-        print("\(rBuffer[0]),\(gBuffer[0]),\(bBuffer[0])")
 
         // convert planar to RGB
         try array.withUnsafeMutableBufferPointer(ofType: Float.self) { dest, _ in
