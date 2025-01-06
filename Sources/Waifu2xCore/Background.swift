@@ -36,7 +36,7 @@ actor InputTask {
     }
 
     fileprivate func handleInput(rects: [CGRect]) throws -> MLArrayBatchProvider {
-        let batch = try rects.map { try Waifu2xInput(expanded.convertToML(rect: $0), inputName) }
+        let batch = try rects.map { try Waifu2xInput(expanded.convertToML($0), inputName) }
         return MLArrayBatchProvider(array: batch)
     }
 }

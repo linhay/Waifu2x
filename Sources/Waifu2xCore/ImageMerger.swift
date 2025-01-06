@@ -11,7 +11,6 @@ import CoreML
 
 actor ImageMerger {
     private let width, height, block_size, out_scale, channels: Int
-    private let dataType: Waifu2xModelDataType
 
     // Separate RGBA channels for parallel processing
     private var rChannel: [UInt8]
@@ -26,7 +25,6 @@ actor ImageMerger {
         self.height = height
         block_size = model.blockSize
         out_scale = model.outScale
-        dataType = model.outputDataType
         self.channels = channels
 
         let size = out_width * out_height
@@ -42,13 +40,6 @@ actor ImageMerger {
     }
 
     func mergeRGB(_ rect: CGRect, _ array: MLMultiArray) throws {
-        switch dataType {
-        case .planar: mergePlanarRGB(rect, array)
-        case .interleaved: try mergeInterleavedRGB(rect, array)
-        }
-    }
-
-    func mergePlanarRGB(_ rect: CGRect, _ array: MLMultiArray) {
         let out_width = width * out_scale
         let out_height = height * out_scale
         let out_block_size = block_size * out_scale
@@ -109,98 +100,6 @@ actor ImageMerger {
                     // Continuous memory copy for better performance
                     vDSP_vfixu8(
                         arrayAddress.advanced(by: srcRowStart), 1,
-                        channel.baseAddress!.advanced(by: destRowStart), 1,
-                        vDSP_Length(validWidth)
-                    )
-                }
-            }
-        }
-    }
-
-    func mergeInterleavedRGB(_ rect: CGRect, _ array: MLMultiArray) throws {
-        let out_width = width * out_scale
-        let out_height = height * out_scale
-        let out_block_size = block_size * out_scale
-        let origin_x = Int(rect.origin.x) * out_scale
-        let origin_y = Int(rect.origin.y) * out_scale
-
-        // Calculate the effective replication area
-        let validHeight = min(out_block_size, out_height - origin_y)
-        let validWidth = min(out_block_size, out_width - origin_x)
-        guard validWidth > 0, validHeight > 0 else { return }
-
-        // Create block buffer
-        var rBuffer = [Float](repeating: 0, count: out_block_size * out_block_size)
-        var gBuffer = [Float](repeating: 0, count: out_block_size * out_block_size)
-        var bBuffer = [Float](repeating: 0, count: out_block_size * out_block_size)
-
-        let bufferSize = out_block_size * out_block_size * 3
-        try array.withUnsafeMutableBufferPointer(ofType: Float.self) { src, _ in
-            let arrayAddress = src.baseAddress!
-
-            var scale: Float = 255.0
-            vDSP_vsmul(arrayAddress, 1, &scale, arrayAddress, 1, vDSP_Length(bufferSize))
-            // Use vDSP to clip values to valid range
-            var minValue: Float = 0.0
-            var maxValue: Float = 255.0
-            vDSP_vclip(arrayAddress, 1, &minValue, &maxValue, arrayAddress, 1, vDSP_Length(bufferSize))
-
-            try withUnsafeMutableBufferPointer(&rBuffer, &gBuffer, &bBuffer) { r, g, b in
-                let vBlockSize = vImagePixelCount(out_block_size)
-                let blockRowBytes = out_block_size * MemoryLayout<Float>.stride
-
-                // 设置 vImage buffer
-                var srcBuffer = vImage_Buffer(data: arrayAddress, height: vBlockSize, width: vBlockSize, rowBytes: blockRowBytes * 3)
-                var rBuffer = vImage_Buffer(data: r.baseAddress, height: vBlockSize, width: vBlockSize, rowBytes: blockRowBytes)
-                var gBuffer = vImage_Buffer(data: g.baseAddress, height: vBlockSize, width: vBlockSize, rowBytes: blockRowBytes)
-                var bBuffer = vImage_Buffer(data: b.baseAddress, height: vBlockSize, width: vBlockSize, rowBytes: blockRowBytes)
-
-                // 解交错到 RGB 缓冲区
-                let error = vImageConvert_RGBFFFtoPlanarF(&srcBuffer, &rBuffer, &gBuffer, &bBuffer, vImage_Flags(kvImageNoFlags))
-                guard error == kvImageNoError else { throw Waifu2xError.mergeImageFailed }
-            }
-        }
-
-        // Process each RGB channel
-        rChannel.withUnsafeMutableBufferPointer { channel in
-            rBuffer.withUnsafeBufferPointer { r in
-                // Copy each row of the block
-                for row in 0 ..< validHeight {
-                    let srcRowStart = row * out_block_size
-                    let destRowStart = (origin_y + row) * out_width + origin_x
-                    // Continuous memory copy for better performance
-                    vDSP_vfixu8(
-                        r.baseAddress!.advanced(by: srcRowStart), 1,
-                        channel.baseAddress!.advanced(by: destRowStart), 1,
-                        vDSP_Length(validWidth)
-                    )
-                }
-            }
-        }
-        gChannel.withUnsafeMutableBufferPointer { channel in
-            gBuffer.withUnsafeBufferPointer { g in
-                // Copy each row of the block
-                for row in 0 ..< validHeight {
-                    let srcRowStart = row * out_block_size
-                    let destRowStart = (origin_y + row) * out_width + origin_x
-                    // Continuous memory copy for better performance
-                    vDSP_vfixu8(
-                        g.baseAddress!.advanced(by: srcRowStart), 1,
-                        channel.baseAddress!.advanced(by: destRowStart), 1,
-                        vDSP_Length(validWidth)
-                    )
-                }
-            }
-        }
-        bChannel.withUnsafeMutableBufferPointer { channel in
-            bBuffer.withUnsafeBufferPointer { b in
-                // Copy each row of the block
-                for row in 0 ..< validHeight {
-                    let srcRowStart = row * out_block_size
-                    let destRowStart = (origin_y + row) * out_width + origin_x
-                    // Continuous memory copy for better performance
-                    vDSP_vfixu8(
-                        b.baseAddress!.advanced(by: srcRowStart), 1,
                         channel.baseAddress!.advanced(by: destRowStart), 1,
                         vDSP_Length(validWidth)
                     )

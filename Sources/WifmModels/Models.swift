@@ -62,7 +62,6 @@ private struct Waifu2xModelManifest: Decodable {
 
 public struct WifmModel: Waifu2xModelInfo, @unchecked Sendable {
     public let name: String
-    public let inputDataType, outputDataType: Waifu2xCore.Waifu2xModelDataType
     public let inputShape: [Int]
     public let shrinkSize, outScale, blockSize: Int
     public let mainModel: MLModel
@@ -80,8 +79,6 @@ public struct WifmModel: Waifu2xModelInfo, @unchecked Sendable {
         let manifestData = try Data(contentsOf: manifestURL)
         let manifest = try JSONDecoder().decode(Waifu2xModelManifest.self, from: manifestData)
         name = manifest.name
-        inputDataType = .planar
-        outputDataType = .interleaved
         inputShape = manifest.inputShape
         shrinkSize = manifest.shrinkSize
         outScale = manifest.scale

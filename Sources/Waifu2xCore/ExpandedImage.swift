@@ -104,7 +104,6 @@ struct ExpandedImage: Sendable {
     private let r, g, b: [Float]
     private let inputBlockSize, expWidth: Int // for input
     private let shape: [NSNumber]
-    private let dataType: Waifu2xModelDataType
 
     /// Expand the original image by shrink_size and store rgb in float array.
     /// The model will shrink the input image by 7 px.
@@ -162,18 +161,10 @@ struct ExpandedImage: Sendable {
         inputBlockSize = model.blockSize + 2 * model.shrinkSize
         expWidth = width + 2 * model.shrinkSize
         shape = model.inputShape.map { NSNumber(value: $0) }
-        dataType = model.inputDataType
-    }
-
-    func convertToML(rect: CGRect) throws -> MLMultiArray {
-        switch dataType {
-        case .planar: try convertToPlanarML(rect)
-        case .interleaved: try convertToInterleavedML(rect)
-        }
     }
 
     /// Use vDSP to copy the RGB channel to the planar format required by the waifu2x model
-    private func convertToPlanarML(_ rect: CGRect) throws -> MLMultiArray {
+    func convertToML(_ rect: CGRect) throws -> MLMultiArray {
         let x = Int(rect.origin.x)
         let y = Int(rect.origin.y)
         let channelSize = inputBlockSize * inputBlockSize
@@ -202,82 +193,6 @@ struct ExpandedImage: Sendable {
                         vDSP_Length(inputBlockSize) // Destination stride
                     )
                 }
-            }
-        }
-
-        return array
-    }
-
-    /// Use vImage to convert the RGB format to the interleaved format required by the custom model
-    private func convertToInterleavedML(_ rect: CGRect) throws -> MLMultiArray {
-        let x = Int(rect.origin.x)
-        let y = Int(rect.origin.y)
-        let channelSize = inputBlockSize * inputBlockSize
-
-        // Create MLMultiArray with shape [channels, height, width]
-        let array = try Result { try MLMultiArray(shape: shape, dataType: .float32) }
-            .mapError { Waifu2xError.coreMLError($0.localizedDescription) }
-            .get()
-
-        // Create block buffer
-        var rBuffer = [Float](repeating: 0, count: channelSize)
-        var gBuffer = [Float](repeating: 0, count: channelSize)
-        var bBuffer = [Float](repeating: 0, count: channelSize)
-
-        // Process each RGB channel concurrently
-        let srcOffset = y * expWidth + x
-        rBuffer.withUnsafeMutableBufferPointer { arrayPtr in
-            r.withUnsafeBufferPointer { channelPtr in
-                vDSP_mmov(
-                    channelPtr.baseAddress!.advanced(by: srcOffset),
-                    arrayPtr.baseAddress!,
-                    vDSP_Length(inputBlockSize), // Number of elements to copy per row
-                    vDSP_Length(inputBlockSize), // Number of rows to copy
-                    vDSP_Length(expWidth), // Source stride
-                    vDSP_Length(inputBlockSize) // Destination stride
-                )
-            }
-        }
-        gBuffer.withUnsafeMutableBufferPointer { arrayPtr in
-            g.withUnsafeBufferPointer { channelPtr in
-                vDSP_mmov(
-                    channelPtr.baseAddress!.advanced(by: srcOffset),
-                    arrayPtr.baseAddress!,
-                    vDSP_Length(inputBlockSize), // Number of elements to copy per row
-                    vDSP_Length(inputBlockSize), // Number of rows to copy
-                    vDSP_Length(expWidth), // Source stride
-                    vDSP_Length(inputBlockSize) // Destination stride
-                )
-            }
-        }
-        bBuffer.withUnsafeMutableBufferPointer { arrayPtr in
-            b.withUnsafeBufferPointer { channelPtr in
-                vDSP_mmov(
-                    channelPtr.baseAddress!.advanced(by: srcOffset),
-                    arrayPtr.baseAddress!,
-                    vDSP_Length(inputBlockSize), // Number of elements to copy per row
-                    vDSP_Length(inputBlockSize), // Number of rows to copy
-                    vDSP_Length(expWidth), // Source stride
-                    vDSP_Length(inputBlockSize) // Destination stride
-                )
-            }
-        }
-
-        // convert planar to RGB
-        try array.withUnsafeMutableBufferPointer(ofType: Float.self) { dest, _ in
-            try withUnsafeMutableBufferPointer(&rBuffer, &gBuffer, &bBuffer) { r, g, b in
-                let vBlockSize = vImagePixelCount(inputBlockSize)
-                let blockRowBytes = inputBlockSize * MemoryLayout<Float>.stride
-
-                // 设置 vImage buffer
-                var rBuffer = vImage_Buffer(data: r.baseAddress, height: vBlockSize, width: vBlockSize, rowBytes: blockRowBytes)
-                var gBuffer = vImage_Buffer(data: g.baseAddress, height: vBlockSize, width: vBlockSize, rowBytes: blockRowBytes)
-                var bBuffer = vImage_Buffer(data: b.baseAddress, height: vBlockSize, width: vBlockSize, rowBytes: blockRowBytes)
-                var destBuffer = vImage_Buffer(data: dest.baseAddress, height: vBlockSize, width: vBlockSize, rowBytes: blockRowBytes * 3)
-
-                // 交错为 RGB 格式
-                let error = vImageConvert_PlanarFtoRGBFFF(&rBuffer, &gBuffer, &bBuffer, &destBuffer, vImage_Flags(kvImageNoFlags))
-                guard error == kvImageNoError else { throw Waifu2xError.expandImageFailed }
             }
         }
 
