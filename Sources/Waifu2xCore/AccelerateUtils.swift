@@ -10,6 +10,19 @@ import Accelerate
 
 typealias VImagePointer<T> = UnsafeMutableBufferPointer<T>
 
+func withUnsafeMutableBufferPointer<T1, T2, T3>(
+    _ a: inout [T1], _ b: inout [T2], _ c: inout [T3],
+    invoke: @escaping (VImagePointer<T1>, VImagePointer<T2>, VImagePointer<T3>) throws -> Void
+) throws {
+    try a.withUnsafeMutableBufferPointer { aBuffer in
+        try b.withUnsafeMutableBufferPointer { bBuffer in
+            try c.withUnsafeMutableBufferPointer { cBuffer in
+                try invoke(aBuffer, bBuffer, cBuffer)
+            }
+        }
+    }
+}
+
 func withUnsafeMutableBufferPointer<T1, T2, T3, T4, T5>(
     _ a: inout [T1], _ b: inout [T2], _ c: inout [T3], _ d: inout [T4], _ e: inout [T5],
     invoke: @escaping (
@@ -31,7 +44,7 @@ func withUnsafeMutableBufferPointer<T1, T2, T3, T4, T5>(
 
 extension CGImage {
     /// Expand the image to a size larger than block_size
-    func preExpand(block_size: Int) throws -> CGImage {
+    func preExpand(_ block_size: Int) throws -> CGImage {
         // Check if expansion is needed
         guard width < block_size || height < block_size else { return self }
 

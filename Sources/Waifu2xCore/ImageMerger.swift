@@ -18,13 +18,13 @@ actor ImageMerger {
     private var bChannel: [UInt8]
     private var aChannel: [UInt8]
 
-    init(width: Int, height: Int, block_size: Int, out_scale: Int, channels: Int) {
-        let out_width = width * out_scale
-        let out_height = height * out_scale
+    init(width: Int, height: Int, model: Waifu2xModelInfo, channels: Int) {
+        let out_width = width * model.outScale
+        let out_height = height * model.outScale
         self.width = width
         self.height = height
-        self.block_size = block_size
-        self.out_scale = out_scale
+        block_size = model.blockSize
+        out_scale = model.outScale
         self.channels = channels
 
         let size = out_width * out_height
@@ -39,7 +39,7 @@ actor ImageMerger {
         aChannel = alpha
     }
 
-    func mergeRGB(_ rect: CGRect, _ array: MLMultiArray) {
+    func mergeRGB(_ rect: CGRect, _ array: MLMultiArray) throws {
         let out_width = width * out_scale
         let out_height = height * out_scale
         let out_block_size = block_size * out_scale
@@ -52,15 +52,15 @@ actor ImageMerger {
         guard validWidth > 0, validHeight > 0 else { return }
 
         let bufferSize = out_block_size * out_block_size * 3
-        array.withUnsafeMutableBufferPointer(ofType: Double.self) { ptr, _ in
+        array.withUnsafeMutableBufferPointer(ofType: Float.self) { ptr, _ in
             let arrayAddress = ptr.baseAddress!
 
-            var scale = 255.0
-            vDSP_vsmulD(arrayAddress, 1, &scale, arrayAddress, 1, vDSP_Length(bufferSize))
+            var scale: Float = 255.0
+            vDSP_vsmul(arrayAddress, 1, &scale, arrayAddress, 1, vDSP_Length(bufferSize))
             // Use vDSP to clip values to valid range
-            var minValue = 0.0
-            var maxValue = 255.0
-            vDSP_vclipD(arrayAddress, 1, &minValue, &maxValue, arrayAddress, 1, vDSP_Length(bufferSize))
+            var minValue: Float = 0.0
+            var maxValue: Float = 255.0
+            vDSP_vclip(arrayAddress, 1, &minValue, &maxValue, arrayAddress, 1, vDSP_Length(bufferSize))
 
             // Process each RGB channel
             rChannel.withUnsafeMutableBufferPointer { channel in
@@ -70,7 +70,7 @@ actor ImageMerger {
                     let srcRowStart = channelOffset + row * out_block_size
                     let destRowStart = (origin_y + row) * out_width + origin_x
                     // Continuous memory copy for better performance
-                    vDSP_vfixu8D(
+                    vDSP_vfixu8(
                         arrayAddress.advanced(by: srcRowStart), 1,
                         channel.baseAddress!.advanced(by: destRowStart), 1,
                         vDSP_Length(validWidth)
@@ -84,7 +84,7 @@ actor ImageMerger {
                     let srcRowStart = channelOffset + row * out_block_size
                     let destRowStart = (origin_y + row) * out_width + origin_x
                     // Continuous memory copy for better performance
-                    vDSP_vfixu8D(
+                    vDSP_vfixu8(
                         arrayAddress.advanced(by: srcRowStart), 1,
                         channel.baseAddress!.advanced(by: destRowStart), 1,
                         vDSP_Length(validWidth)
@@ -98,7 +98,7 @@ actor ImageMerger {
                     let srcRowStart = channelOffset + row * out_block_size
                     let destRowStart = (origin_y + row) * out_width + origin_x
                     // Continuous memory copy for better performance
-                    vDSP_vfixu8D(
+                    vDSP_vfixu8(
                         arrayAddress.advanced(by: srcRowStart), 1,
                         channel.baseAddress!.advanced(by: destRowStart), 1,
                         vDSP_Length(validWidth)

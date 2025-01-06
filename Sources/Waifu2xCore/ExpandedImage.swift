@@ -11,7 +11,7 @@ import CoreImage
 import CoreML
 
 private extension [Float] {
-    mutating func expandChannel(width: Int, height: Int, shrink_size: Int, clipEta8: Float) -> [Float] {
+    mutating func expandChannel(width: Int, height: Int, shrink_size: Int) -> [Float] {
         let exwidth = width + 2 * shrink_size
         let exheight = height + 2 * shrink_size
 
@@ -79,8 +79,12 @@ private extension [Float] {
         // 3. 复制原图数据到中心位置并添加增益
         withUnsafeMutableBufferPointer { tempPtr in
             result.withUnsafeMutableBufferPointer { resultPtr in
-                var clip = clipEta8
-                vDSP_vsadd(tempPtr.baseAddress!, 1, &clip, tempPtr.baseAddress!, 1, vDSP_Length(width * height))
+                // Do not exactly know its function
+                // However it can on average improve PSNR by 0.09
+                // https://github.com/nagadomi/waifu2x/commit/797b45ae23665a1c5e3c481c018e48e6f0d0e383
+                var clipEta8 = Float(0.00196)
+                vDSP_vsadd(tempPtr.baseAddress!, 1, &clipEta8, tempPtr.baseAddress!, 1, vDSP_Length(width * height))
+
                 vDSP_mmov(
                     tempPtr.baseAddress!,
                     resultPtr.baseAddress!.advanced(by: shrink_size * exwidth + shrink_size),
@@ -97,12 +101,13 @@ private extension [Float] {
 }
 
 struct ExpandedImage: Sendable {
-    let r, g, b: [Float]
-    let blockSize, expWidth: Int // for input
+    private let r, g, b: [Float]
+    private let inputBlockSize, expWidth: Int // for input
+    private let shape: [NSNumber]
 
     /// Expand the original image by shrink_size and store rgb in float array.
     /// The model will shrink the input image by 7 px.
-    init(image: CGImage, blockSize: Int, shrinkSize: Int, clipEta8: Float) throws {
+    init(_ image: CGImage, _ model: Waifu2xModelInfo) throws {
         let width = image.width
         let height = image.height
         let rect = CGRect(origin: .zero, size: CGSize(width: width, height: height))
@@ -150,21 +155,21 @@ struct ExpandedImage: Sendable {
         }
 
         // 处理每个通道
-        r = rChannel.expandChannel(width: width, height: height, shrink_size: shrinkSize, clipEta8: clipEta8)
-        g = gChannel.expandChannel(width: width, height: height, shrink_size: shrinkSize, clipEta8: clipEta8)
-        b = bChannel.expandChannel(width: width, height: height, shrink_size: shrinkSize, clipEta8: clipEta8)
-        self.blockSize = blockSize + 2 * shrinkSize
-        expWidth = width + 2 * shrinkSize
+        r = rChannel.expandChannel(width: width, height: height, shrink_size: model.shrinkSize)
+        g = gChannel.expandChannel(width: width, height: height, shrink_size: model.shrinkSize)
+        b = bChannel.expandChannel(width: width, height: height, shrink_size: model.shrinkSize)
+        inputBlockSize = model.blockSize + 2 * model.shrinkSize
+        expWidth = width + 2 * model.shrinkSize
+        shape = model.inputShape.map { NSNumber(value: $0) }
     }
 
-    /// Use vImage to convert the RGB format to the planar format required by the waifu2x model
-    func convertToML(rect: CGRect) throws -> MLMultiArray {
+    /// Use vDSP to copy the RGB channel to the planar format required by the waifu2x model
+    func convertToML(_ rect: CGRect) throws -> MLMultiArray {
         let x = Int(rect.origin.x)
         let y = Int(rect.origin.y)
-        let channelSize = blockSize * blockSize
+        let channelSize = inputBlockSize * inputBlockSize
 
         // Create MLMultiArray with shape [channels, height, width]
-        let shape: [NSNumber] = [3, NSNumber(value: blockSize), NSNumber(value: blockSize)]
         let array = try Result { try MLMultiArray(shape: shape, dataType: .float32) }
             .mapError { Waifu2xError.coreMLError($0.localizedDescription) }
             .get()
@@ -182,10 +187,10 @@ struct ExpandedImage: Sendable {
                     vDSP_mmov(
                         channelPtr.baseAddress!.advanced(by: srcOffset),
                         arrayPtr.baseAddress!.advanced(by: destOffset),
-                        vDSP_Length(blockSize), // Number of elements to copy per row
-                        vDSP_Length(blockSize), // Number of rows to copy
+                        vDSP_Length(inputBlockSize), // Number of elements to copy per row
+                        vDSP_Length(inputBlockSize), // Number of rows to copy
                         vDSP_Length(expWidth), // Source stride
-                        vDSP_Length(blockSize) // Destination stride
+                        vDSP_Length(inputBlockSize) // Destination stride
                     )
                 }
             }
