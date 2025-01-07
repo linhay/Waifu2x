@@ -9,8 +9,6 @@
 import CoreML
 import Waifu2xCore
 
-// MARK: - waifu2x SRCNN
-
 public enum Waifu2xSrcnnModel: String, CaseIterable, Sendable {
     case anime_noise0 = "anime_noise0_model"
     case anime_noise1 = "anime_noise1_model"

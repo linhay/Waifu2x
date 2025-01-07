@@ -9,6 +9,7 @@ let package = Package(
     products: [
         .library(name: "Waifu2x", targets: ["Waifu2xCore", "Waifu2xModels"]),
         .library(name: "Waifu2xCore", targets: ["Waifu2xCore"]),
+        .library(name: "Anime4kModels", targets: ["Anime4kModels"]),
         .library(name: "WifmModels", targets: ["WifmModels"]),
     ],
     dependencies: [
@@ -25,12 +26,18 @@ let package = Package(
             resources: [.process("srcnn")]
         ),
         .target(
+            name: "Anime4kModels",
+            dependencies: ["Waifu2xCore"],
+            sources: ["Models.swift"],
+            resources: [.process("Models"), .process("Presets2x"), .process("Presets4x")]
+        ),
+        .target(
             name: "WifmModels",
             dependencies: ["Waifu2xCore", "ZIPFoundation"]
         ),
         .testTarget(
             name: "Waifu2xTests",
-            dependencies: ["Waifu2xCore", "Waifu2xModels", "WifmModels"],
+            dependencies: ["Waifu2xCore", "Waifu2xModels", "Anime4kModels", "WifmModels"],
             resources: [.copy("white.png")]
         ),
     ]
