@@ -39,6 +39,18 @@ public enum Anime4kModel: String, CaseIterable, Sendable {
     case model_sr_uul_gan
 
     // presets 2x
+    case perset2x_a_fast
+    case perset2x_a_hq
+    case perset2x_b_fast
+    case perset2x_b_hq
+    case perset2x_c_fast
+    case perset2x_c_hq
+    case perset2x_a_a_fast
+    case perset2x_a_a_hq
+    case perset2x_b_b_fast
+    case perset2x_b_b_hq
+    case perset2x_c_a_fast
+    case perset2x_c_a_hq
 
     // presets 4x
 }
@@ -72,28 +84,18 @@ extension Anime4kModel: Waifu2xModelInfo {
         case .model_sr_ul_gan: "Anime4K: Upscale GAN UL"
         case .model_sr_vl_gan: "Anime4K: Upscale GAN UL"
         case .model_sr_uul_gan: "Anime4K: Upscale GAN UUL"
-        }
-    }
-
-    public var inputShape: [Int] {
-        switch self {
-        case .model_restore_l, .model_restore_m, .model_restore_s, .model_restore_ul, .model_restore_vl,
-             .model_restore_soft_l, .model_restore_soft_m, .model_restore_soft_s, .model_restore_soft_ul, .model_restore_soft_vl,
-             .model_sr_denoise_l, .model_sr_denoise_m, .model_sr_denoise_s, .model_sr_denoise_ul, .model_sr_denoise_vl,
-             .model_sr_l, .model_sr_m, .model_sr_s, .model_sr_ul, .model_sr_vl,
-             .model_sr_l_gan, .model_sr_m_gan, .model_sr_s_gan, .model_sr_ul_gan, .model_sr_vl_gan, .model_sr_uul_gan:
-            [1, 3, 128, 128]
-        }
-    }
-
-    public var shrinkSize: Int {
-        switch self {
-        case .model_restore_l, .model_restore_m, .model_restore_s, .model_restore_ul, .model_restore_vl,
-             .model_restore_soft_l, .model_restore_soft_m, .model_restore_soft_s, .model_restore_soft_ul, .model_restore_soft_vl,
-             .model_sr_denoise_l, .model_sr_denoise_m, .model_sr_denoise_s, .model_sr_denoise_ul, .model_sr_denoise_vl,
-             .model_sr_l, .model_sr_m, .model_sr_s, .model_sr_ul, .model_sr_vl,
-             .model_sr_l_gan, .model_sr_m_gan, .model_sr_s_gan, .model_sr_ul_gan, .model_sr_vl_gan, .model_sr_uul_gan:
-            10
+        case .perset2x_a_fast: "Anime4K: Mode A (Fast) 2x"
+        case .perset2x_a_hq: "Anime4K: Mode A (HQ) 2x"
+        case .perset2x_b_fast: "Anime4K: Mode B (Fast) 2x"
+        case .perset2x_b_hq: "Anime4K: Mode B (HQ) 2x"
+        case .perset2x_c_fast: "Anime4K: Mode C (Fast) 2x"
+        case .perset2x_c_hq: "Anime4K: Mode C (HQ) 2x"
+        case .perset2x_a_a_fast: "Anime4K: Mode A+A (Fast) 2x"
+        case .perset2x_a_a_hq: "Anime4K: Mode A+A (HQ) 2x"
+        case .perset2x_b_b_fast: "Anime4K: Mode B+B (Fast) 2x"
+        case .perset2x_b_b_hq: "Anime4K: Mode B+B (HQ) 2x"
+        case .perset2x_c_a_fast: "Anime4K: Mode C+A (Fast) 2x"
+        case .perset2x_c_a_hq: "Anime4K: Mode C+A (HQ) 2x"
         }
     }
 
@@ -103,8 +105,9 @@ extension Anime4kModel: Waifu2xModelInfo {
              .model_restore_soft_l, .model_restore_soft_m, .model_restore_soft_s, .model_restore_soft_ul, .model_restore_soft_vl:
             1
         case .model_sr_denoise_l, .model_sr_denoise_m, .model_sr_denoise_s, .model_sr_denoise_ul, .model_sr_denoise_vl,
-             .model_sr_l, .model_sr_m, .model_sr_s, .model_sr_ul, .model_sr_vl,
-             .model_sr_m_gan, .model_sr_s_gan:
+             .model_sr_l, .model_sr_m, .model_sr_s, .model_sr_ul, .model_sr_vl, .model_sr_m_gan, .model_sr_s_gan,
+             .perset2x_a_fast, .perset2x_a_hq, .perset2x_b_fast, .perset2x_b_hq, .perset2x_c_fast, .perset2x_c_hq,
+             .perset2x_a_a_fast, .perset2x_a_a_hq, .perset2x_b_b_fast, .perset2x_b_b_hq, .perset2x_c_a_fast, .perset2x_c_a_hq:
             2
         case .model_sr_l_gan, .model_sr_vl_gan:
             3
@@ -113,17 +116,9 @@ extension Anime4kModel: Waifu2xModelInfo {
         }
     }
 
-    public var blockSize: Int {
-        switch self {
-        case .model_restore_l, .model_restore_m, .model_restore_s, .model_restore_ul, .model_restore_vl,
-             .model_restore_soft_l, .model_restore_soft_m, .model_restore_soft_s, .model_restore_soft_ul, .model_restore_soft_vl,
-             .model_sr_denoise_l, .model_sr_denoise_m, .model_sr_denoise_s, .model_sr_denoise_ul, .model_sr_denoise_vl,
-             .model_sr_l, .model_sr_m, .model_sr_s, .model_sr_ul, .model_sr_vl,
-             .model_sr_l_gan, .model_sr_m_gan, .model_sr_s_gan, .model_sr_ul_gan, .model_sr_vl_gan, .model_sr_uul_gan:
-            108
-        }
-    }
-
+    public var inputShape: [Int] { [1, 3, 128, 128] }
+    public var shrinkSize: Int { 10 }
+    public var blockSize: Int { 108 }
     public var shrinkAfterHandled: Bool { true }
     public var mainInputName: String { "input_MAIN" }
     public var mainOutputName: String { "Identity" }
