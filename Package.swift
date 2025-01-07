@@ -9,6 +9,7 @@ let package = Package(
     products: [
         .library(name: "Waifu2x", targets: ["Waifu2xCore", "Waifu2xModels"]),
         .library(name: "Waifu2xCore", targets: ["Waifu2xCore"]),
+        .library(name: "WifmModels", targets: ["WifmModels"]),
     ],
     dependencies: [
         .package(url: "https://github.com/weichsel/ZIPFoundation.git", .upToNextMajor(from: "0.9.0")),
