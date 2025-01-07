@@ -10,7 +10,7 @@ import Accelerate
 import CoreML
 
 actor ImageMerger {
-    private let width, height, blockSize, outScale, channels: Int
+    private let width, height, blockSize, shrinkSize, outScale, channels: Int
 
     // Separate RGBA channels for parallel processing
     private var rChannel: [UInt8]
@@ -24,6 +24,7 @@ actor ImageMerger {
         self.width = width
         self.height = height
         blockSize = model.blockSize
+        shrinkSize = if model.shrinkAfterHandled { model.shrinkSize * model.outScale } else { 0 }
         outScale = model.outScale
         self.channels = channels
 
@@ -63,13 +64,12 @@ actor ImageMerger {
             vDSP_vclip(arrayAddress, 1, &minValue, &maxValue, arrayAddress, 1, vDSP_Length(bufferSize))
 
             // Process each RGB channel
+            let srcBlockSize = outBlockSize + 2 * shrinkSize
+            let channelOffset = srcBlockSize * srcBlockSize
             rChannel.withUnsafeMutableBufferPointer { channel in
-                let channelOffset = 0 * outBlockSize * outBlockSize
-                // Copy each row of the block
                 for row in 0 ..< validHeight {
-                    let srcRowStart = channelOffset + row * outBlockSize
+                    let srcRowStart = channelOffset * 0 + (row + shrinkSize) * srcBlockSize + shrinkSize
                     let destRowStart = (originY + row) * outWidth + originX
-                    // Continuous memory copy for better performance
                     vDSP_vfixu8(
                         arrayAddress.advanced(by: srcRowStart), 1,
                         channel.baseAddress!.advanced(by: destRowStart), 1,
@@ -78,12 +78,9 @@ actor ImageMerger {
                 }
             }
             gChannel.withUnsafeMutableBufferPointer { channel in
-                let channelOffset = 1 * outBlockSize * outBlockSize
-                // Copy each row of the block
                 for row in 0 ..< validHeight {
-                    let srcRowStart = channelOffset + row * outBlockSize
+                    let srcRowStart = channelOffset * 1 + (row + shrinkSize) * srcBlockSize + shrinkSize
                     let destRowStart = (originY + row) * outWidth + originX
-                    // Continuous memory copy for better performance
                     vDSP_vfixu8(
                         arrayAddress.advanced(by: srcRowStart), 1,
                         channel.baseAddress!.advanced(by: destRowStart), 1,
@@ -92,12 +89,9 @@ actor ImageMerger {
                 }
             }
             bChannel.withUnsafeMutableBufferPointer { channel in
-                let channelOffset = 2 * outBlockSize * outBlockSize
-                // Copy each row of the block
                 for row in 0 ..< validHeight {
-                    let srcRowStart = channelOffset + row * outBlockSize
+                    let srcRowStart = channelOffset * 2 + (row + shrinkSize) * srcBlockSize + shrinkSize
                     let destRowStart = (originY + row) * outWidth + originX
-                    // Continuous memory copy for better performance
                     vDSP_vfixu8(
                         arrayAddress.advanced(by: srcRowStart), 1,
                         channel.baseAddress!.advanced(by: destRowStart), 1,

@@ -18,6 +18,9 @@ public protocol Waifu2xModelInfo: Sendable {
     // for input:  block size = blockSize + shrinkSize * 2
     // for output: block size = blockSize * outScale
     var blockSize: Int { get }
+    // If the model does not discard unstable regions after processing,
+    // it needs to be set to true to discard
+    var shrinkAfterHandled: Bool { get }
 
     var mainModel: MLModel { get }
     var mainInputName: String { get }
