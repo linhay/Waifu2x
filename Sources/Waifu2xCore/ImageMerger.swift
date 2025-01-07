@@ -10,7 +10,7 @@ import Accelerate
 import CoreML
 
 actor ImageMerger {
-    private let width, height, block_size, out_scale, channels: Int
+    private let width, height, blockSize, shrinkSize, outScale, channels: Int
 
     // Separate RGBA channels for parallel processing
     private var rChannel: [UInt8]
@@ -19,15 +19,16 @@ actor ImageMerger {
     private var aChannel: [UInt8]
 
     init(width: Int, height: Int, model: Waifu2xModelInfo, channels: Int) {
-        let out_width = width * model.outScale
-        let out_height = height * model.outScale
+        let outWidth = width * model.outScale
+        let outHeight = height * model.outScale
         self.width = width
         self.height = height
-        block_size = model.blockSize
-        out_scale = model.outScale
+        blockSize = model.blockSize
+        shrinkSize = if model.shrinkAfterHandled { model.shrinkSize * model.outScale } else { 0 }
+        outScale = model.outScale
         self.channels = channels
 
-        let size = out_width * out_height
+        let size = outWidth * outHeight
         rChannel = [UInt8](repeating: 0, count: size)
         gChannel = [UInt8](repeating: 0, count: size)
         bChannel = [UInt8](repeating: 0, count: size)
@@ -40,20 +41,21 @@ actor ImageMerger {
     }
 
     func mergeRGB(_ rect: CGRect, _ array: MLMultiArray) throws {
-        let out_width = width * out_scale
-        let out_height = height * out_scale
-        let out_block_size = block_size * out_scale
-        let origin_x = Int(rect.origin.x) * out_scale
-        let origin_y = Int(rect.origin.y) * out_scale
+        let outWidth = width * outScale
+        let outHeight = height * outScale
+        let outBlockSize = blockSize * outScale
+        let originX = Int(rect.origin.x) * outScale
+        let originY = Int(rect.origin.y) * outScale
 
         // Calculate the effective replication area
-        let validHeight = min(out_block_size, out_height - origin_y)
-        let validWidth = min(out_block_size, out_width - origin_x)
+        let validHeight = min(outBlockSize, outHeight - originY)
+        let validWidth = min(outBlockSize, outWidth - originX)
         guard validWidth > 0, validHeight > 0 else { return }
 
-        let bufferSize = out_block_size * out_block_size * 3
         array.withUnsafeMutableBufferPointer(ofType: Float.self) { ptr, _ in
             let arrayAddress = ptr.baseAddress!
+            let srcBlockSize = outBlockSize + 2 * shrinkSize
+            let bufferSize = srcBlockSize * srcBlockSize * 3
 
             var scale: Float = 255.0
             vDSP_vsmul(arrayAddress, 1, &scale, arrayAddress, 1, vDSP_Length(bufferSize))
@@ -63,13 +65,11 @@ actor ImageMerger {
             vDSP_vclip(arrayAddress, 1, &minValue, &maxValue, arrayAddress, 1, vDSP_Length(bufferSize))
 
             // Process each RGB channel
+            let channelOffset = srcBlockSize * srcBlockSize
             rChannel.withUnsafeMutableBufferPointer { channel in
-                let channelOffset = 0 * out_block_size * out_block_size
-                // Copy each row of the block
                 for row in 0 ..< validHeight {
-                    let srcRowStart = channelOffset + row * out_block_size
-                    let destRowStart = (origin_y + row) * out_width + origin_x
-                    // Continuous memory copy for better performance
+                    let srcRowStart = channelOffset * 0 + (row + shrinkSize) * srcBlockSize + shrinkSize
+                    let destRowStart = (originY + row) * outWidth + originX
                     vDSP_vfixu8(
                         arrayAddress.advanced(by: srcRowStart), 1,
                         channel.baseAddress!.advanced(by: destRowStart), 1,
@@ -78,12 +78,9 @@ actor ImageMerger {
                 }
             }
             gChannel.withUnsafeMutableBufferPointer { channel in
-                let channelOffset = 1 * out_block_size * out_block_size
-                // Copy each row of the block
                 for row in 0 ..< validHeight {
-                    let srcRowStart = channelOffset + row * out_block_size
-                    let destRowStart = (origin_y + row) * out_width + origin_x
-                    // Continuous memory copy for better performance
+                    let srcRowStart = channelOffset * 1 + (row + shrinkSize) * srcBlockSize + shrinkSize
+                    let destRowStart = (originY + row) * outWidth + originX
                     vDSP_vfixu8(
                         arrayAddress.advanced(by: srcRowStart), 1,
                         channel.baseAddress!.advanced(by: destRowStart), 1,
@@ -92,12 +89,9 @@ actor ImageMerger {
                 }
             }
             bChannel.withUnsafeMutableBufferPointer { channel in
-                let channelOffset = 2 * out_block_size * out_block_size
-                // Copy each row of the block
                 for row in 0 ..< validHeight {
-                    let srcRowStart = channelOffset + row * out_block_size
-                    let destRowStart = (origin_y + row) * out_width + origin_x
-                    // Continuous memory copy for better performance
+                    let srcRowStart = channelOffset * 2 + (row + shrinkSize) * srcBlockSize + shrinkSize
+                    let destRowStart = (originY + row) * outWidth + originX
                     vDSP_vfixu8(
                         arrayAddress.advanced(by: srcRowStart), 1,
                         channel.baseAddress!.advanced(by: destRowStart), 1,
@@ -110,31 +104,31 @@ actor ImageMerger {
 
     // Create final image data with all channels combined
     func freezeImage() throws -> CFData {
-        let out_width = width * out_scale
-        let out_height = height * out_scale
+        let outWidth = width * outScale
+        let outHeight = height * outScale
 
         // Create destination buffer for interleaved format
-        var destPixels = [UInt8](repeating: 0, count: out_width * out_height * 4)
+        var destPixels = [UInt8](repeating: 0, count: outWidth * outHeight * 4)
         try withUnsafeMutableBufferPointer(&rChannel, &gChannel, &bChannel, &aChannel, &destPixels) { r, g, b, a, dest in
             var rImageBuffer = vImage_Buffer(
-                data: r.baseAddress, height: vImagePixelCount(out_height),
-                width: vImagePixelCount(out_width), rowBytes: out_width
+                data: r.baseAddress, height: vImagePixelCount(outHeight),
+                width: vImagePixelCount(outWidth), rowBytes: outWidth
             )
             var gImageBuffer = vImage_Buffer(
-                data: g.baseAddress, height: vImagePixelCount(out_height),
-                width: vImagePixelCount(out_width), rowBytes: out_width
+                data: g.baseAddress, height: vImagePixelCount(outHeight),
+                width: vImagePixelCount(outWidth), rowBytes: outWidth
             )
             var bImageBuffer = vImage_Buffer(
-                data: b.baseAddress, height: vImagePixelCount(out_height),
-                width: vImagePixelCount(out_width), rowBytes: out_width
+                data: b.baseAddress, height: vImagePixelCount(outHeight),
+                width: vImagePixelCount(outWidth), rowBytes: outWidth
             )
             var aImageBuffer = vImage_Buffer(
-                data: a.baseAddress, height: vImagePixelCount(out_height),
-                width: vImagePixelCount(out_width), rowBytes: out_width
+                data: a.baseAddress, height: vImagePixelCount(outHeight),
+                width: vImagePixelCount(outWidth), rowBytes: outWidth
             )
             var destImageBuffer = vImage_Buffer(
-                data: dest.baseAddress, height: vImagePixelCount(out_height),
-                width: vImagePixelCount(out_width), rowBytes: out_width * 4
+                data: dest.baseAddress, height: vImagePixelCount(outHeight),
+                width: vImagePixelCount(outWidth), rowBytes: outWidth * 4
             )
             // Convert from planar to interleaved format using vImage
             let error = vImageConvert_Planar8toARGB8888(

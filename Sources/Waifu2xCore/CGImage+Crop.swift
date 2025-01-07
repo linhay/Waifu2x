@@ -12,40 +12,40 @@
 import CoreGraphics
 
 extension CGImage {
-    func getCropRects(_ block_size: Int) -> [CGRect] {
-        let num_w = width / block_size
-        let num_h = height / block_size
-        let ex_w = width % block_size
-        let ex_h = height % block_size
+    func getCropRects(_ blockSize: Int) -> [CGRect] {
+        let numW = width / blockSize
+        let numH = height / blockSize
+        let exW = width % blockSize
+        let exH = height % blockSize
         var rects: [CGRect] = []
-        for i in 0 ..< num_w {
-            for j in 0 ..< num_h {
-                let x = i * block_size
-                let y = j * block_size
-                let rect = CGRect(x: x, y: y, width: block_size, height: block_size)
+        for i in 0 ..< numW {
+            for j in 0 ..< numH {
+                let x = i * blockSize
+                let y = j * blockSize
+                let rect = CGRect(x: x, y: y, width: blockSize, height: blockSize)
                 rects.append(rect)
             }
         }
-        if ex_w > 0 {
-            let x = width - block_size
-            for i in 0 ..< num_h {
-                let y = i * block_size
-                let rect = CGRect(x: x, y: y, width: block_size, height: block_size)
+        if exW > 0 {
+            let x = width - blockSize
+            for i in 0 ..< numH {
+                let y = i * blockSize
+                let rect = CGRect(x: x, y: y, width: blockSize, height: blockSize)
                 rects.append(rect)
             }
         }
-        if ex_h > 0 {
-            let y = height - block_size
-            for i in 0 ..< num_w {
-                let x = i * block_size
-                let rect = CGRect(x: x, y: y, width: block_size, height: block_size)
+        if exH > 0 {
+            let y = height - blockSize
+            for i in 0 ..< numW {
+                let x = i * blockSize
+                let rect = CGRect(x: x, y: y, width: blockSize, height: blockSize)
                 rects.append(rect)
             }
         }
-        if ex_w > 0, ex_h > 0 {
-            let x = width - block_size
-            let y = height - block_size
-            let rect = CGRect(x: x, y: y, width: block_size, height: block_size)
+        if exW > 0, exH > 0 {
+            let x = width - blockSize
+            let y = height - blockSize
+            let rect = CGRect(x: x, y: y, width: blockSize, height: blockSize)
             rects.append(rect)
         }
         return rects

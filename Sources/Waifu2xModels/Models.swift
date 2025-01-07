@@ -47,6 +47,7 @@ extension Waifu2xSrcnnModel: Waifu2xModelInfo {
     public var shrinkSize: Int { 7 }
     public var outScale: Int { if scale2x { 2 } else { 1 } }
     public var blockSize: Int { if scale2x { 142 } else { 128 } }
+    public var shrinkAfterHandled: Bool { false }
 
     public var mainModel: MLModel {
         let assetPath = Bundle.module.url(forResource: rawValue, withExtension: "mlmodelc")

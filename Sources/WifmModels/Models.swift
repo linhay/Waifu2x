@@ -64,6 +64,7 @@ public struct WifmModel: Waifu2xModelInfo, @unchecked Sendable {
     public let name: String
     public let inputShape: [Int]
     public let shrinkSize, outScale, blockSize: Int
+    public let shrinkAfterHandled = true
     public let mainModel: MLModel
     public let mainInputName, mainOutputName: String
 
