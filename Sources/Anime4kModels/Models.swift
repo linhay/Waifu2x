@@ -53,6 +53,18 @@ public enum Anime4kModel: String, CaseIterable, Sendable {
     case perset2x_c_a_hq
 
     // presets 4x
+    case perset4x_a_fast
+    case perset4x_a_hq
+    case perset4x_b_fast
+    case perset4x_b_hq
+    case perset4x_c_fast
+    case perset4x_c_hq
+    case perset4x_a_a_fast
+    case perset4x_a_a_hq
+    case perset4x_b_b_fast
+    case perset4x_b_b_hq
+    case perset4x_c_a_fast
+    case perset4x_c_a_hq
 }
 
 extension Anime4kModel: Waifu2xModelInfo {
@@ -96,6 +108,18 @@ extension Anime4kModel: Waifu2xModelInfo {
         case .perset2x_b_b_hq: "Anime4K: Mode B+B (HQ) 2x"
         case .perset2x_c_a_fast: "Anime4K: Mode C+A (Fast) 2x"
         case .perset2x_c_a_hq: "Anime4K: Mode C+A (HQ) 2x"
+        case .perset4x_a_fast: "Anime4K: Mode A (Fast) 4x"
+        case .perset4x_a_hq: "Anime4K: Mode A (HQ) 4x"
+        case .perset4x_b_fast: "Anime4K: Mode B (Fast) 4x"
+        case .perset4x_b_hq: "Anime4K: Mode B (HQ) 4x"
+        case .perset4x_c_fast: "Anime4K: Mode C (Fast) 4x"
+        case .perset4x_c_hq: "Anime4K: Mode C (HQ) 4x"
+        case .perset4x_a_a_fast: "Anime4K: Mode A+A (Fast) 4x"
+        case .perset4x_a_a_hq: "Anime4K: Mode A+A (HQ) 4x"
+        case .perset4x_b_b_fast: "Anime4K: Mode B+B (Fast) 4x"
+        case .perset4x_b_b_hq: "Anime4K: Mode B+B (HQ) 4x"
+        case .perset4x_c_a_fast: "Anime4K: Mode C+A (Fast) 4x"
+        case .perset4x_c_a_hq: "Anime4K: Mode C+A (HQ) 4x"
         }
     }
 
@@ -111,7 +135,9 @@ extension Anime4kModel: Waifu2xModelInfo {
             2
         case .model_sr_l_gan, .model_sr_vl_gan:
             3
-        case .model_sr_ul_gan, .model_sr_uul_gan:
+        case .model_sr_ul_gan, .model_sr_uul_gan,
+             .perset4x_a_fast, .perset4x_a_hq, .perset4x_b_fast, .perset4x_b_hq, .perset4x_c_fast, .perset4x_c_hq,
+             .perset4x_a_a_fast, .perset4x_a_a_hq, .perset4x_b_b_fast, .perset4x_b_b_hq, .perset4x_c_a_fast, .perset4x_c_a_hq:
             4
         }
     }
