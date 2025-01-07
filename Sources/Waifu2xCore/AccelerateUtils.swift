@@ -44,18 +44,18 @@ func withUnsafeMutableBufferPointer<T1, T2, T3, T4, T5>(
 
 extension CGImage {
     /// Expand the image to a size larger than block_size
-    func preExpand(_ block_size: Int) throws -> CGImage {
+    func preExpand(_ blockSize: Int) throws -> CGImage {
         // Check if expansion is needed
-        guard width < block_size || height < block_size else { return self }
+        guard width < blockSize || height < blockSize else { return self }
 
         var fullWidth = width
         var fullHeight = height
 
-        if width < block_size {
-            fullWidth = block_size
+        if width < blockSize {
+            fullWidth = blockSize
         }
-        if height < block_size {
-            fullHeight = block_size
+        if height < blockSize {
+            fullHeight = blockSize
         }
         var bitmapInfo = bitmapInfo.rawValue
         if bitmapInfo & CGBitmapInfo.alphaInfoMask.rawValue == CGImageAlphaInfo.first.rawValue {

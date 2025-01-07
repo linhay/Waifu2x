@@ -11,12 +11,12 @@ import CoreImage
 import CoreML
 
 private extension [Float] {
-    mutating func expandChannel(width: Int, height: Int, shrink_size: Int) -> [Float] {
-        let exwidth = width + 2 * shrink_size
-        let exheight = height + 2 * shrink_size
+    mutating func expandChannel(width: Int, height: Int, shrinkSize: Int) -> [Float] {
+        let exWidth = width + 2 * shrinkSize
+        let exHeight = height + 2 * shrinkSize
 
         // 1. 创建扩展尺寸的结果数组
-        var result = [Float](repeating: 0, count: exwidth * exheight)
+        var result = [Float](repeating: 0, count: exWidth * exHeight)
 
         // 2. 填充边界
         // 2.1 填充上下边界（使用vDSP_mmov复制整行）
@@ -24,16 +24,16 @@ private extension [Float] {
         let lastRow = self[(width * (height - 1))...]
 
         // 上边界：复制第一行
-        for y in 0 ..< shrink_size {
+        for y in 0 ..< shrinkSize {
             firstRow.withUnsafeBufferPointer { buffer in
-                vDSP_mmov(buffer.baseAddress!, &result[y * exwidth + shrink_size], vDSP_Length(width), 1, 1, 1)
+                vDSP_mmov(buffer.baseAddress!, &result[y * exWidth + shrinkSize], vDSP_Length(width), 1, 1, 1)
             }
         }
 
         // 下边界：复制最后一行
-        for y in (height + shrink_size) ..< exheight {
+        for y in (height + shrinkSize) ..< exHeight {
             lastRow.withUnsafeBufferPointer { buffer in
-                vDSP_mmov(buffer.baseAddress!, &result[y * exwidth + shrink_size], vDSP_Length(width), 1, 1, 1)
+                vDSP_mmov(buffer.baseAddress!, &result[y * exWidth + shrinkSize], vDSP_Length(width), 1, 1, 1)
             }
         }
 
@@ -41,13 +41,13 @@ private extension [Float] {
         for y in 0 ..< height {
             let left = self[y * width]
             let right = self[y * width + width - 1]
-            let destY = y + shrink_size
+            let destY = y + shrinkSize
 
             // 左边界
-            vDSP_vfill([left], &result[destY * exwidth], 1, vDSP_Length(shrink_size))
+            vDSP_vfill([left], &result[destY * exWidth], 1, vDSP_Length(shrinkSize))
 
             // 右边界
-            vDSP_vfill([right], &result[destY * exwidth + width + shrink_size], 1, vDSP_Length(shrink_size))
+            vDSP_vfill([right], &result[destY * exWidth + width + shrinkSize], 1, vDSP_Length(shrinkSize))
         }
 
         // 2.3 填充四个角
@@ -57,23 +57,23 @@ private extension [Float] {
         let bottomRight = self[width * height - 1]
 
         // 左上角
-        for y in 0 ..< shrink_size {
-            vDSP_vfill([topLeft], &result[y * exwidth], 1, vDSP_Length(shrink_size))
+        for y in 0 ..< shrinkSize {
+            vDSP_vfill([topLeft], &result[y * exWidth], 1, vDSP_Length(shrinkSize))
         }
 
         // 右上角
-        for y in 0 ..< shrink_size {
-            vDSP_vfill([topRight], &result[y * exwidth + width + shrink_size], 1, vDSP_Length(shrink_size))
+        for y in 0 ..< shrinkSize {
+            vDSP_vfill([topRight], &result[y * exWidth + width + shrinkSize], 1, vDSP_Length(shrinkSize))
         }
 
         // 左下角
-        for y in (height + shrink_size) ..< exheight {
-            vDSP_vfill([bottomLeft], &result[y * exwidth], 1, vDSP_Length(shrink_size))
+        for y in (height + shrinkSize) ..< exHeight {
+            vDSP_vfill([bottomLeft], &result[y * exWidth], 1, vDSP_Length(shrinkSize))
         }
 
         // 右下角
-        for y in (height + shrink_size) ..< exheight {
-            vDSP_vfill([bottomRight], &result[y * exwidth + width + shrink_size], 1, vDSP_Length(shrink_size))
+        for y in (height + shrinkSize) ..< exHeight {
+            vDSP_vfill([bottomRight], &result[y * exWidth + width + shrinkSize], 1, vDSP_Length(shrinkSize))
         }
 
         // 3. 复制原图数据到中心位置并添加增益
@@ -87,11 +87,11 @@ private extension [Float] {
 
                 vDSP_mmov(
                     tempPtr.baseAddress!,
-                    resultPtr.baseAddress!.advanced(by: shrink_size * exwidth + shrink_size),
+                    resultPtr.baseAddress!.advanced(by: shrinkSize * exWidth + shrinkSize),
                     vDSP_Length(width),
                     vDSP_Length(height),
                     vDSP_Length(width),
-                    vDSP_Length(exwidth)
+                    vDSP_Length(exWidth)
                 )
             }
         }
@@ -155,9 +155,9 @@ struct ExpandedImage: Sendable {
         }
 
         // 处理每个通道
-        r = rChannel.expandChannel(width: width, height: height, shrink_size: model.shrinkSize)
-        g = gChannel.expandChannel(width: width, height: height, shrink_size: model.shrinkSize)
-        b = bChannel.expandChannel(width: width, height: height, shrink_size: model.shrinkSize)
+        r = rChannel.expandChannel(width: width, height: height, shrinkSize: model.shrinkSize)
+        g = gChannel.expandChannel(width: width, height: height, shrinkSize: model.shrinkSize)
+        b = bChannel.expandChannel(width: width, height: height, shrinkSize: model.shrinkSize)
         inputBlockSize = model.blockSize + 2 * model.shrinkSize
         expWidth = width + 2 * model.shrinkSize
         shape = model.inputShape.map { NSNumber(value: $0) }

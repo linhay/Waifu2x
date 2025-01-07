@@ -58,8 +58,8 @@ public struct Waifu2x: Sendable {
         }
         let hasAlpha = try await alphaTask.value
 
-        let out_width = width * outScale
-        let out_height = height * outScale
+        let outWidth = width * outScale
+        let outHeight = height * outScale
         let cfbuffer = try await imageMerger.freezeImage()
         guard let dataProvider = CGDataProvider(data: cfbuffer)
         else { throw Waifu2xError.createImageFailed("new CGDataProvider, but return nil") }
@@ -71,10 +71,10 @@ public struct Waifu2x: Sendable {
             bitmapInfo |= CGImageAlphaInfo.noneSkipLast.rawValue
         }
         guard let cgImage = CGImage(
-            width: out_width, height: out_height, bitsPerComponent: 8, bitsPerPixel: 8 * channels,
-            bytesPerRow: out_width * channels, space: colorSpace, bitmapInfo: CGBitmapInfo(rawValue: bitmapInfo),
+            width: outWidth, height: outHeight, bitsPerComponent: 8, bitsPerPixel: 8 * channels,
+            bytesPerRow: outWidth * channels, space: colorSpace, bitmapInfo: CGBitmapInfo(rawValue: bitmapInfo),
             provider: dataProvider, decode: nil, shouldInterpolate: true, intent: CGColorRenderingIntent.defaultIntent
         ) else { throw Waifu2xError.createImageFailed("CGImage return nil") }
-        return Waifu2xData(cgImage: cgImage, cgSize: CGSize(width: out_width, height: out_height))
+        return Waifu2xData(cgImage: cgImage, cgSize: CGSize(width: outWidth, height: outHeight))
     }
 }
